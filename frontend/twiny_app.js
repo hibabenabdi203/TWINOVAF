@@ -81,7 +81,7 @@ const TWINY = (() => {
 
     try {
       // Dashboard KPIs
-      const dashRes = await fetch('http://localhost:8000/historique/2');
+      const dashRes = await fetch('https://twinovaf.onrender.com/historique/2');
       if (dashRes.ok) {
         const dash = await dashRes.json();
         if (dash.historique && dash.historique.length > 0) {

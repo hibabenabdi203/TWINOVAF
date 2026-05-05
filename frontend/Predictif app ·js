@@ -21,7 +21,7 @@ const predictif = (() => {
   // ── Helpers ─────────────────────────────────────────
   const api = (path, method = 'GET', body = null) => {
     const token = localStorage.getItem('twinova_token');
-    return fetch(`http://localhost:8000/predictif${path}`, {
+    return fetch(`https://twinovaf.onrender.com/predictif${path}`, {
       method,
       headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
       ...(body ? { body: JSON.stringify(body) } : {}),

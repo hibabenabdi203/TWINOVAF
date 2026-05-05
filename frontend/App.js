@@ -16,7 +16,7 @@ document.addEventListener('submit', (event) => {
 // ── PLAN D'ACTION ─────────────────────────────────────
 async function chargerPlanAction(produitId = 2) {
   try {
-    const response = await fetch(`http://127.0.0.1:8000/plan-action/${produitId}`);
+    const response = await fetch(`https://twinovaf.onrender.com/plan-action/${produitId}`);
     const data = await response.json();
     const r = data.recommandations;
 
@@ -127,7 +127,7 @@ async function seConnecter() {
   if (!email || !mdp) { error.textContent = 'Remplissez tous les champs'; return; }
 
   try {
-    const response = await fetch('http://127.0.0.1:8000/connexion', {
+    const response = await fetch('https://twinovaf.onrender.com/connexion', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email, mot_de_passe: mdp })
@@ -159,7 +159,7 @@ async function sInscrire() {
   if (mdp.length < 6) { error.textContent = 'Mot de passe minimum 6 caractères'; return; }
 
   try {
-    const response = await fetch('http://127.0.0.1:8000/inscription', {
+    const response = await fetch('https://twinovaf.onrender.com/inscription', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ nom_entreprise: nom, email, mot_de_passe: mdp })
@@ -402,7 +402,7 @@ async function chargerPageRecettes() {
 // ── Charger les templates depuis le backend ──────────
 async function chargerTemplates() {
   try {
-    const response = await fetch('http://127.0.0.1:8000/templates-recettes');
+    const response = await fetch('https://twinovaf.onrender.com/templates-recettes');
     templatesData  = await response.json();
 
     const grid = document.getElementById('ts-grid');
@@ -578,7 +578,7 @@ async function sauvegarderRecette() {
   };
 
   try {
-    const response = await fetch('http://127.0.0.1:8000/recettes', {
+    const response = await fetch('https://twinovaf.onrender.com/recettes', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data)
@@ -597,7 +597,7 @@ async function sauvegarderRecette() {
 
 async function chargerRecettesSauvegardees() {
   try {
-    const response = await fetch('http://127.0.0.1:8000/recettes/2');
+    const response = await fetch('https://twinovaf.onrender.com/recettes/2');
     recettesData   = await response.json();
 
     const container = document.getElementById('recettes-sauvegardees');
@@ -668,7 +668,7 @@ async function creerLot() {
   };
 
   try {
-    const response = await fetch('http://127.0.0.1:8000/lots', {
+    const response = await fetch('https://twinovaf.onrender.com/lots', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data)
@@ -792,7 +792,7 @@ async function simulerCapacite() {
 
   try {
     const response = await fetch(
-      `http://127.0.0.1:8000/simulateur-capacite/${recetteId}?objectif_unites=${objectif}&trs_moyen=${trs}`
+      `https://twinovaf.onrender.com/simulateur-capacite/${recetteId}?objectif_unites=${objectif}&trs_moyen=${trs}`
     );
     const result = await response.json();
 
@@ -1009,7 +1009,7 @@ function getCouleurKPI() {
 
 async function chargerKPIs3D(produitId = 2) {
   try {
-    const response = await fetch(`http://127.0.0.1:8000/historique/${produitId}`);
+    const response = await fetch(`https://twinovaf.onrender.com/historique/${produitId}`);
     const data = await response.json();
     if (!data.historique || data.historique.length === 0) return;
 
@@ -1265,7 +1265,7 @@ const chartDatasets = {
 
 async function chargerDonneesGraphiques(produitId = 2) {
   try {
-    const response = await fetch(`http://127.0.0.1:8000/historique/${produitId}`);
+    const response = await fetch(`https://twinovaf.onrender.com/historique/${produitId}`);
     const data = await response.json();
     const historique = data.historique.reverse(); // Du plus ancien au plus récent
 
@@ -1361,7 +1361,7 @@ async function initLossChart(produitId = 2) {
   let pannes = 42, micro = 18, setup = 15, qualite = 20;
 
   try {
-    const response = await fetch(`http://127.0.0.1:8000/historique/${produitId}`);
+    const response = await fetch(`https://twinovaf.onrender.com/historique/${produitId}`);
     const data = await response.json();
 
     if (data.historique && data.historique.length > 0) {
@@ -1426,12 +1426,12 @@ let BASE_REEL = null; // Sera rempli avec les vraies données
 
 async function chargerDonneesSimulateur(produitId = 2) {
   try {
-    const response = await fetch(`http://127.0.0.1:8000/historique/${produitId}`);
+    const response = await fetch(`https://twinovaf.onrender.com/historique/${produitId}`);
     const data = await response.json();
 
     if (data.historique && data.historique.length > 0) {
       const dernier = data.historique[0];
-      const prodResponse = await fetch(`http://127.0.0.1:8000/produits`);
+      const prodResponse = await fetch(`https://twinovaf.onrender.com/produits`);
       const produits = await prodResponse.json();
       const produit = produits.find(p => p.id === produitId) || produits[0];
 
@@ -1508,7 +1508,7 @@ async function calculateKPI(e) {
 
   try {
     // Envoyer les données au serveur Python
-    const response = await fetch('http://127.0.0.1:8000/saisie', {
+    const response = await fetch('https://twinovaf.onrender.com/saisie', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data)
@@ -1675,7 +1675,7 @@ function fullSim() {
 // ── MES PRODUITS ─────────────────────────────────────
 async function chargerProduits() {
   try {
-    const response = await fetch('http://127.0.0.1:8000/produits');
+    const response = await fetch('https://twinovaf.onrender.com/produits');
     const produits = await response.json();
 
     if (!produits || produits.length === 0) return;
@@ -1686,7 +1686,7 @@ async function chargerProduits() {
     // Récupérer le dernier TRS de chaque produit
     const produitAvecKpi = await Promise.all(produits.map(async (p) => {
       try {
-        const hResp = await fetch(`http://127.0.0.1:8000/historique/${p.id}`);
+        const hResp = await fetch(`https://twinovaf.onrender.com/historique/${p.id}`);
         const hData = await hResp.json();
         const dernier = hData.historique && hData.historique[0];
         return { ...p, trs: dernier ? dernier.trs : null };
@@ -1744,7 +1744,7 @@ async function chargerProduits() {
 }
 async function chargerHistorique() {
   try {
-    const response = await fetch('http://127.0.0.1:8000/historique/2');
+    const response = await fetch('https://twinovaf.onrender.com/historique/2');
     const data = await response.json();
 
     const tbody = document.querySelector('.data-table tbody');
@@ -1792,7 +1792,7 @@ async function chargerHistorique() {
 // ── DASHBOARD — connecté au backend ──────────────────
 async function chargerDashboard() {
   try {
-    const response = await fetch('http://127.0.0.1:8000/historique/2');
+    const response = await fetch('https://twinovaf.onrender.com/historique/2');
     const data = await response.json();
 
     if (!data.historique || data.historique.length === 0) return;
@@ -1929,7 +1929,7 @@ window.haccp = (() => {
       },
       ...(body ? { body: JSON.stringify(body) } : {}),
     };
-    return fetch(`http://127.0.0.1:8000/haccp${path}`, opts).then(r => {
+    return fetch(`https://twinovaf.onrender.com/haccp${path}`, opts).then(r => {
       if (!r.ok) return r.json().then(e => { throw new Error(e.detail || 'Erreur API'); });
       return r.json();
     });
@@ -1945,7 +1945,7 @@ window.haccp = (() => {
       },
       ...(body ? { body: JSON.stringify(body) } : {}),
     };
-    return fetch('http://127.0.0.1:8000' + path, opts).then(r => r.json());
+    return fetch('https://twinovaf.onrender.com' + path, opts).then(r => r.json());
   };
 
   const toast = (msg, type = 'success') => {
@@ -2760,7 +2760,7 @@ window.haccp = (() => {
   // ── Helpers ─────────────────────────────────────────
   const api = (path, method = 'GET', body = null) => {
     const token = localStorage.getItem('twinova_token');
-    return fetch(`http://127.0.0.1:8000/energie${path}`, {
+    return fetch(`https://twinovaf.onrender.com/energie${path}`, {
       method,
       headers: {
         'Content-Type': 'application/json',
@@ -3405,7 +3405,7 @@ const predictif = (() => {
   // ── Helpers ─────────────────────────────────────────
   const api = (path, method = 'GET', body = null) => {
     const token = localStorage.getItem('twinova_token');
-    return fetch(`http://127.0.0.1:8000/predictif${path}`, {
+    return fetch(`https://twinovaf.onrender.com/predictif${path}`, {
       method,
       headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
       ...(body ? { body: JSON.stringify(body) } : {}),
@@ -4156,7 +4156,7 @@ const greenfield = (() => {
   // ── Helpers ─────────────────────────────────────────────────────────────────
   const api = (path, method = 'GET', body = null) => {
     const token = localStorage.getItem('twinova_token');
-    return fetch(`http://127.0.0.1:8000/greenfield${path}`, {
+    return fetch(`https://twinovaf.onrender.com/greenfield${path}`, {
       method,
       headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
       ...(body ? { body: JSON.stringify(body) } : {}),

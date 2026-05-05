@@ -20,7 +20,7 @@ const energie = (() => {
   // ── Helpers ─────────────────────────────────────────
   const api = (path, method = 'GET', body = null) => {
     const token = localStorage.getItem('twinova_token');
-    return fetch(`http://localhost:8000/energie${path}`, {
+    return fetch(`https://twinovaf.onrender.com/energie${path}`, {
       method,
       headers: {
         'Content-Type': 'application/json',
