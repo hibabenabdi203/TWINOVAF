@@ -1,0 +1,738 @@
+/* =============================================================
+   TWINOVA — MODULE 5 : MAINTENANCE PRÉDICTIVE
+   À coller à la fin de App.js
+   Ajouter dans navigate() :
+   if (pageId === 'predictif') setTimeout(() => predictif.init(), 50);
+   Ajouter dans pageTitles :
+   predictif: 'Maintenance Prédictive',
+   ============================================================= */
+
+const predictif = (() => {
+
+  const PRODUIT_ID = 2;
+  let state = {
+    composants    : [],
+    predictions   : [],
+    radarChart    : null,
+    hsiChart      : null,
+    rapportData   : null,
+  };
+
+  // ── Helpers ─────────────────────────────────────────
+  const api = (path, method = 'GET', body = null) => {
+    const token = localStorage.getItem('twinova_token');
+    return fetch(`http://localhost:8000/predictif${path}`, {
+      method,
+      headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+      ...(body ? { body: JSON.stringify(body) } : {}),
+    }).then(r => r.json());
+  };
+
+  const toast = (msg, type = 'success') => {
+    if (typeof showToast === 'function') { showToast(msg, type); return; }
+    const el = document.createElement('div');
+    const bg = type === 'success' ? '#1a8a4a' : type === 'error' ? '#d93025' : '#f59e0b';
+    el.style.cssText = `position:fixed;bottom:24px;right:24px;z-index:9999;padding:14px 20px;
+      border-radius:10px;font-size:14px;font-weight:600;background:${bg};color:#fff;
+      box-shadow:0 8px 24px rgba(0,0,0,.2);font-family:Rajdhani,sans-serif`;
+    el.textContent = msg;
+    document.body.appendChild(el);
+    setTimeout(() => el.remove(), 5000);
+  };
+
+  const setText = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
+  const fmt = (n) => n ? n.toLocaleString('fr-DZ') : '—';
+
+  // ── INIT ────────────────────────────────────────────
+  const init = async () => {
+    const now = new Date();
+    const moisEl = document.getElementById('rapp-mois');
+    const anneeEl = document.getElementById('rapp-annee');
+    if (moisEl) moisEl.value = now.getMonth() + 1;
+    if (anneeEl) anneeEl.value = now.getFullYear();
+
+    await Promise.all([
+      chargerDashboard(),
+      chargerComposants(),
+      chargerPredictions(),
+    ]);
+  };
+
+  // ── Dashboard KPIs ───────────────────────────────────
+  const chargerDashboard = async () => {
+    try {
+      const d = await api(`/dashboard/${PRODUIT_ID}`);
+      const hsi = d.hsi_moyen || 75;
+
+      setText('pred-hsi', Math.round(hsi));
+      const ring = document.getElementById('ring-hsi');
+      if (ring) {
+        const offset = 201 - (hsi / 100) * 201;
+        ring.style.strokeDashoffset = offset;
+        ring.style.stroke = hsi >= 75 ? 'var(--green)' : hsi >= 55 ? 'var(--yellow)' : 'var(--red)';
+      }
+      const badge = document.getElementById('pred-hsi-badge');
+      if (badge) {
+        badge.textContent = hsi >= 75 ? 'OPTIMAL' : hsi >= 55 ? 'SURVEILLER' : hsi >= 35 ? 'PLANIFIER' : 'CRITIQUE';
+        badge.className = `kpi-status ${hsi >= 75 ? 'ok' : hsi >= 55 ? 'warning' : 'critical'}`;
+      }
+      setText('pred-hsi-delta', `${d.nb_composants} composants`);
+      setText('pred-agir', d.alertes_agir || 0);
+      setText('pred-planifier', `🟠 ${d.alertes_planifier || 0} à planifier`);
+      setText('pred-surveiller', `🟡 ${d.alertes_surveiller || 0} à surveiller`);
+      setText('pred-cout-evite', `${fmt(d.cout_evite_potentiel)} DZD`);
+      setText('pred-fiabilite', d.taux_fiabilite_pct || '—');
+      setText('pred-actives', `${d.predictions_actives || 0} prédictions actives`);
+      const fiabBadge = document.getElementById('pred-fiab-badge');
+      if (fiabBadge && d.taux_fiabilite_pct) {
+        fiabBadge.textContent = d.taux_fiabilite_pct >= 80 ? 'FIABLE' : 'EN APPRENTISSAGE';
+        fiabBadge.className = `kpi-status ${d.taux_fiabilite_pct >= 80 ? 'ok' : 'warning'}`;
+      }
+    } catch(e) { console.error('dashboard predictif:', e); }
+  };
+
+  // ── Composants ───────────────────────────────────────
+  const chargerComposants = async () => {
+    try {
+      state.composants = await api(`/composants/${PRODUIT_ID}`);
+      renderComposants();
+      populateSelects();
+    } catch(e) { console.error('composants:', e); }
+  };
+
+  const renderComposants = () => {
+    const grid = document.getElementById('composants-grid');
+    if (!grid) return;
+
+    const typeIcons = {
+      moteur:'⚙️', pompe:'🔄', capteur:'📡', vanne:'🔧',
+      echangeur:'♨️', compresseur:'💨', convoyeur:'🏭', autre:'🔩'
+    };
+
+    grid.innerHTML = state.composants.map(c => {
+      const hsi      = c.hsi_actuel;
+      const alerte   = c.niveau_alerte;
+      const couleur  = alerte === 'agir' ? 'var(--red)' : alerte === 'planifier' ? 'var(--orange)' :
+                       alerte === 'surveiller' ? 'var(--yellow)' : 'var(--green)';
+      const alerteLabel = alerte === 'agir' ? '🔴 AGIR MAINTENANT' :
+                          alerte === 'planifier' ? '🟠 Planifier' :
+                          alerte === 'surveiller' ? '🟡 Surveiller' : '✅ Normal';
+      const usurePct = c.ratio_usure_pct || 0;
+      const usureColor = usurePct >= 90 ? 'var(--red)' : usurePct >= 70 ? 'var(--yellow)' : 'var(--green)';
+
+      return `
+        <div class="composant-card alerte-${alerte}" onclick="predictif.voirAnalyse(${c.id})">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px">
+            <div>
+              <div style="font-size:18px">${typeIcons[c.type_composant] || '🔩'}</div>
+              <div style="font-weight:700;font-size:14px;margin-top:4px">${c.nom}</div>
+              <div style="font-family:var(--mono);font-size:10px;color:var(--text-m)">${c.type_composant}</div>
+            </div>
+            <div style="text-align:right">
+              <div style="font-family:var(--mono);font-size:28px;font-weight:700;color:${hsi ? couleur : 'var(--text-d)'}">${hsi !== null ? Math.round(hsi) : '—'}</div>
+              <div style="font-family:var(--mono);font-size:10px;color:var(--text-m)">HSI</div>
+            </div>
+          </div>
+
+          <div style="font-family:var(--mono);font-size:10px;color:${couleur};font-weight:600;margin-bottom:8px">
+            ${alerteLabel}
+          </div>
+
+          <div style="display:flex;justify-content:space-between;font-family:var(--mono);font-size:11px;color:var(--text-m);margin-bottom:4px">
+            <span>Usure : ${usurePct}%</span>
+            <span>${c.heures_utilisees}h / ${c.duree_vie_theorique_h || '?'}h</span>
+          </div>
+          <div class="usure-bar">
+            <div class="usure-fill" style="width:${Math.min(100,usurePct)}%;background:${usureColor}"></div>
+          </div>
+
+          <div style="display:flex;justify-content:space-between;margin-top:10px;font-family:var(--mono);font-size:10px;color:var(--text-m)">
+            <span>Criticité : ${'⭐'.repeat(c.criticite)}</span>
+            <span>${c.derniere_mesure ? new Date(c.derniere_mesure).toLocaleDateString('fr-DZ') : 'Aucune mesure'}</span>
+          </div>
+        </div>
+      `;
+    }).join('');
+
+    if (!state.composants.length) {
+      grid.innerHTML = `<div style="grid-column:span 2;text-align:center;padding:40px;color:var(--text-m);font-family:var(--mono);font-size:12px">
+        Aucun composant — cliquez "+ Ajouter" pour commencer</div>`;
+    }
+  };
+
+  const populateSelects = () => {
+    const selects = ['m-composant', 'radar-composant', 'analyse-composant'];
+    selects.forEach(id => {
+      const sel = document.getElementById(id);
+      if (!sel) return;
+      const val = sel.value;
+      sel.innerHTML = '<option value="">— Composant —</option>' +
+        state.composants.map(c => `<option value="${c.id}">${c.nom}</option>`).join('');
+      if (val) sel.value = val;
+    });
+  };
+
+  // ── Preview HSI ──────────────────────────────────────
+  const previewHSI = () => {
+    const temp  = parseFloat(document.getElementById('m-temp')?.value);
+    const vib   = parseFloat(document.getElementById('m-vib')?.value);
+    const micro = parseFloat(document.getElementById('m-micro')?.value);
+    const rend  = parseFloat(document.getElementById('m-rendement')?.value);
+
+    let score = 100;
+    const penalites = [];
+
+    if (!isNaN(temp)) {
+      if (temp > 80) penalites.push(Math.min(40, (temp - 80) * 2));
+      else if (temp > 65) penalites.push((temp - 65) * 1.5);
+    }
+    if (!isNaN(vib)) {
+      if (vib > 7.1) penalites.push(Math.min(35, (vib - 7.1) * 5));
+      else if (vib > 4.5) penalites.push((vib - 4.5) * 3);
+    }
+    if (!isNaN(micro)) {
+      if (micro > 30) penalites.push(Math.min(20, (micro - 30) * 0.8));
+      else if (micro > 20) penalites.push((micro - 20) * 0.5);
+    }
+    if (!isNaN(rend)) {
+      if (rend < 93) penalites.push(Math.min(20, (93 - rend) * 2));
+      else if (rend < 96) penalites.push((96 - rend) * 1.2);
+    }
+
+    const total = Math.min(100, penalites.reduce((a, b) => a + b, 0));
+    const hsi   = Math.max(0, Math.round(100 - total));
+
+    const ring  = document.getElementById('hsi-preview-ring');
+    const valEl = document.getElementById('hsi-preview-val');
+    const lblEl = document.getElementById('hsi-preview-label');
+
+    if (!ring || !valEl) return;
+
+    const offset = 440 - (hsi / 100) * 440;
+    const color  = hsi >= 75 ? 'var(--green)' : hsi >= 55 ? 'var(--yellow)' :
+                   hsi >= 35 ? 'var(--orange)' : 'var(--red)';
+    const label  = hsi >= 75 ? '✅ Normal' : hsi >= 55 ? '🟡 Surveiller' :
+                   hsi >= 35 ? '🟠 Planifier' : '🔴 Agir !';
+
+    ring.style.strokeDashoffset = offset;
+    ring.style.stroke = color;
+    valEl.textContent = hsi;
+    valEl.style.fill  = color;
+    if (lblEl) { lblEl.textContent = label; lblEl.style.fill = color; }
+  };
+
+  // ── Saisir mesure ────────────────────────────────────
+  const saisirMesure = async () => {
+    const compId = document.getElementById('m-composant')?.value;
+    if (!compId) { toast('Sélectionnez un composant', 'warning'); return; }
+
+    const body = {
+      composant_id    : parseInt(compId),
+      produit_id      : PRODUIT_ID,
+      shift           : document.getElementById('m-shift')?.value || 'jour',
+      operateur       : document.getElementById('m-operateur')?.value || '',
+      temperature_c   : parseFloat(document.getElementById('m-temp')?.value) || null,
+      vibration_mm_s  : parseFloat(document.getElementById('m-vib')?.value) || null,
+      courant_a       : parseFloat(document.getElementById('m-courant')?.value) || null,
+      bruit_db        : parseFloat(document.getElementById('m-bruit')?.value) || null,
+      micro_arrets_min: parseFloat(document.getElementById('m-micro')?.value) || null,
+      ph_mesure       : parseFloat(document.getElementById('m-ph')?.value) || null,
+      rendement_pct   : parseFloat(document.getElementById('m-rendement')?.value) || null,
+    };
+
+    try {
+      const res = await api('/mesure', 'POST', body);
+      toast(res.message, res.niveau_alerte === 'agir' ? 'error' : res.niveau_alerte === 'planifier' ? 'warning' : 'success');
+
+      // Afficher résultat prédiction si générée
+      if (res.prediction) {
+        const p = res.prediction;
+        const resultEl = document.getElementById('mesure-prediction-result');
+        if (resultEl) {
+          const niveau = res.niveau_alerte;
+          const bg     = niveau === 'agir' ? 'rgba(217,48,37,.08)' : niveau === 'planifier' ? 'rgba(234,108,0,.08)' : 'rgba(245,158,11,.08)';
+          const brd    = niveau === 'agir' ? 'var(--red)' : niveau === 'planifier' ? 'var(--orange)' : 'var(--yellow)';
+          resultEl.style.display = 'block';
+          resultEl.innerHTML = `
+            <div style="background:${bg};border:1px solid ${brd};border-radius:var(--r);padding:16px">
+              <div style="font-family:var(--mono);font-size:10px;color:${brd};letter-spacing:1px;margin-bottom:10px">⚡ PRÉDICTION GÉNÉRÉE</div>
+              <div style="font-size:13px;font-weight:600;margin-bottom:6px">${p.action}</div>
+              ${p.rul?.rul_jours ? `<div style="font-family:var(--mono);font-size:12px;color:var(--text-m)">RUL estimé : <strong>${p.rul.rul_jours} jours</strong></div>` : ''}
+              <div style="margin-top:10px;display:grid;grid-template-columns:1fr 1fr;gap:8px">
+                <div style="background:var(--bg-e);border-radius:var(--r);padding:10px;text-align:center">
+                  <div style="font-family:var(--mono);font-size:10px;color:var(--text-m)">Si on attend</div>
+                  <div style="font-family:var(--mono);font-size:15px;font-weight:700;color:var(--red)">${fmt(p.whatif?.cout_si_panne)} DZD</div>
+                </div>
+                <div style="background:var(--bg-e);border-radius:var(--r);padding:10px;text-align:center">
+                  <div style="font-family:var(--mono);font-size:10px;color:var(--text-m)">Si on agit</div>
+                  <div style="font-family:var(--mono);font-size:15px;font-weight:700;color:var(--green)">${fmt(p.whatif?.cout_preventif)} DZD</div>
+                </div>
+              </div>
+              <div style="margin-top:8px;text-align:center;font-family:var(--mono);font-size:11px;color:var(--teal)">
+                💰 Vous économisez ${fmt(p.whatif?.vous_economisez)} DZD — ${p.whatif?.ratio}
+              </div>
+            </div>`;
+        }
+      }
+
+      await chargerComposants();
+      await chargerDashboard();
+      await chargerPredictions();
+      await updateRadar();
+
+    } catch(e) { toast('Erreur saisie', 'error'); }
+  };
+
+  // ── Radar de risque ──────────────────────────────────
+  const updateRadar = async () => {
+    const compId = document.getElementById('radar-composant')?.value;
+    if (!compId) return;
+
+    try {
+      const analyse = await api(`/analyse/${compId}`);
+      const radar   = analyse.radar_risque;
+      if (!radar) return;
+
+      const canvas = document.getElementById('radar-chart');
+      if (!canvas) return;
+      if (state.radarChart) state.radarChart.destroy();
+
+      state.radarChart = new Chart(canvas.getContext('2d'), {
+        type: 'radar',
+        data: {
+          labels: ['🌡️ Thermique', '📳 Mécanique', '⏱️ Process', '⚙️ Qualité', '🔩 Usure'],
+          datasets: [{
+            label: 'Niveau de risque (%)',
+            data: [
+              radar.thermique || 0,
+              radar.mecanique || 0,
+              radar.process   || 0,
+              radar.qualite   || 0,
+              radar.usure     || 0,
+            ],
+            backgroundColor: 'rgba(217,48,37,.15)',
+            borderColor    : '#d93025',
+            borderWidth    : 2,
+            pointBackgroundColor: '#d93025',
+            pointRadius: 5,
+          }, {
+            label: 'Seuil d\'alerte (50%)',
+            data: [50, 50, 50, 50, 50],
+            backgroundColor: 'transparent',
+            borderColor    : 'rgba(245,158,11,.4)',
+            borderWidth    : 1,
+            borderDash     : [5, 3],
+            pointRadius    : 0,
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          scales: {
+            r: {
+              min: 0, max: 100,
+              ticks: { font:{ family:'JetBrains Mono', size:9 }, color:'var(--text-m)', stepSize: 25 },
+              grid : { color: 'var(--bg-h)' },
+              angleLines: { color: 'var(--border)' },
+              pointLabels: { font:{ family:'Rajdhani', size:11 }, color:'var(--text-m)' },
+            }
+          },
+          plugins: {
+            legend: { position:'bottom', labels:{ font:{family:'JetBrains Mono',size:10}, color:'var(--text-m)' } }
+          }
+        }
+      });
+
+      // Interprétation
+      const maxRisque = Math.max(radar.thermique||0, radar.mecanique||0, radar.process||0, radar.qualite||0, radar.usure||0);
+      const axes = ['thermique','mecanique','process','qualite','usure'];
+      const noms = ['thermique','mécanique','process','qualité','usure'];
+      const idxMax = axes.indexOf(Object.entries(radar).sort((a,b)=>b[1]-a[1])[0][0]);
+
+      const interp = document.getElementById('radar-interpretation');
+      if (interp) {
+        interp.textContent = maxRisque >= 70
+          ? `⚠️ Risque principal : axe ${noms[idxMax] || '—'} (${maxRisque}%). Intervention recommandée.`
+          : maxRisque >= 40
+          ? `🟡 Surveiller l'axe ${noms[idxMax] || '—'} (${maxRisque}%). Pas d'urgence immédiate.`
+          : `✅ Tous les axes dans la zone normale. Prochain contrôle dans 7 jours.`;
+      }
+
+    } catch(e) { console.error('radar:', e); }
+  };
+
+  // ── Voir analyse composant ────────────────────────────
+  const voirAnalyse = async (compId) => {
+    const sel = document.getElementById('analyse-composant');
+    if (sel) sel.value = compId;
+    switchTab('analyse');
+    await analyserComposant();
+  };
+
+  const analyserComposant = async () => {
+    const compId = document.getElementById('analyse-composant')?.value;
+    if (!compId) { toast('Sélectionnez un composant', 'warning'); return; }
+
+    const container = document.getElementById('analyse-result');
+    if (container) container.innerHTML = '<div style="text-align:center;padding:30px;color:var(--text-m)">Analyse en cours…</div>';
+
+    try {
+      const d = await api(`/analyse/${compId}`);
+      if (!container) return;
+
+      const hsi = d.hsi_actuel;
+      const rul = d.rul;
+      const tend= d.tendance_hsi;
+      const corr= d.correlations;
+
+      container.innerHTML = `
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px">
+          <div style="background:var(--bg-e);border-radius:var(--r);padding:16px;text-align:center;border:1px solid var(--border)">
+            <div style="font-family:var(--mono);font-size:10px;color:var(--text-m)">HSI ACTUEL</div>
+            <div style="font-family:var(--mono);font-size:32px;font-weight:700;color:${hsi>=75?'var(--green)':hsi>=55?'var(--yellow)':'var(--red)'}">${hsi !== null ? Math.round(hsi) : '—'}</div>
+            <div style="font-family:var(--mono);font-size:10px;color:var(--text-m)">/ 100</div>
+          </div>
+          <div style="background:var(--bg-e);border-radius:var(--r);padding:16px;text-align:center;border:1px solid var(--border)">
+            <div style="font-family:var(--mono);font-size:10px;color:var(--text-m)">RUL ESTIMÉ</div>
+            <div style="font-family:var(--mono);font-size:22px;font-weight:700;color:var(--teal)">${rul?.rul_jours || '—'}</div>
+            <div style="font-family:var(--mono);font-size:10px;color:var(--text-m)">jours</div>
+          </div>
+          <div style="background:var(--bg-e);border-radius:var(--r);padding:16px;text-align:center;border:1px solid var(--border)">
+            <div style="font-family:var(--mono);font-size:10px;color:var(--text-m)">TENDANCE</div>
+            <div style="font-family:var(--mono);font-size:18px;font-weight:700;color:var(--text)">${tend?.direction || '—'}</div>
+            <div style="font-family:var(--mono);font-size:10px;color:var(--text-m)">J+7: ${tend?.prevision_j7 || '—'}</div>
+          </div>
+          <div style="background:var(--bg-e);border-radius:var(--r);padding:16px;text-align:center;border:1px solid var(--border)">
+            <div style="font-family:var(--mono);font-size:10px;color:var(--text-m)">HSI WMA</div>
+            <div style="font-family:var(--mono);font-size:22px;font-weight:700;color:var(--teal)">${d.hsi_wma || '—'}</div>
+            <div style="font-family:var(--mono);font-size:10px;color:var(--text-m)">pondéré</div>
+          </div>
+        </div>
+
+        ${rul?.message ? `<div style="background:rgba(0,87,184,.06);border:1px solid rgba(0,87,184,.2);border-radius:var(--r);padding:14px;margin-bottom:16px;font-family:var(--mono);font-size:12px;color:var(--teal)">${rul.message}</div>` : ''}
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+          <!-- Corrélations -->
+          <div>
+            <div style="font-family:var(--mono);font-size:10px;color:var(--teal);letter-spacing:1.5px;margin-bottom:12px">CORRÉLATIONS (PEARSON)</div>
+            ${Object.entries(corr || {}).map(([k, v]) => {
+              const r = v.valeur;
+              const abs = Math.abs(r);
+              const w = Math.round(abs * 100);
+              const col = r < -0.4 ? 'var(--red)' : r > 0.4 ? 'var(--green)' : 'var(--text-m)';
+              const nom = k.replace('_vs_hsi','').replace(/_/g,' ');
+              return `<div style="margin-bottom:10px">
+                <div style="display:flex;justify-content:space-between;font-family:var(--mono);font-size:11px;margin-bottom:3px">
+                  <span>${nom}</span><span style="color:${col};font-weight:700">r = ${r}</span>
+                </div>
+                <div style="height:5px;background:var(--bg-h);border-radius:3px">
+                  <div style="height:100%;width:${w}%;background:${col};border-radius:3px"></div>
+                </div>
+                <div style="font-family:var(--mono);font-size:9px;color:var(--text-d);margin-top:2px">${v.interpretation}</div>
+              </div>`;
+            }).join('')}
+            ${!Object.keys(corr || {}).length ? '<div style="color:var(--text-m);font-family:var(--mono);font-size:11px">Pas assez de données (min. 3 mesures)</div>' : ''}
+          </div>
+
+          <!-- Historique HSI -->
+          <div>
+            <div style="font-family:var(--mono);font-size:10px;color:var(--teal);letter-spacing:1.5px;margin-bottom:12px">ÉVOLUTION HSI</div>
+            <canvas id="hsi-evolution-chart" height="180"></canvas>
+          </div>
+        </div>
+      `;
+
+      // Graphique évolution HSI
+      const canvas = document.getElementById('hsi-evolution-chart');
+      if (canvas && d.historique_hsi?.length) {
+        if (state.hsiChart) state.hsiChart.destroy();
+        const labels = d.historique_hsi.map(h => new Date(h.date).toLocaleDateString('fr-DZ', {day:'2-digit',month:'short'}));
+        const valeurs = d.historique_hsi.map(h => h.hsi);
+
+        state.hsiChart = new Chart(canvas.getContext('2d'), {
+          type: 'line',
+          data: {
+            labels,
+            datasets: [{
+              label: 'HSI',
+              data : valeurs,
+              borderColor : '#0057b8',
+              backgroundColor: 'rgba(0,87,184,.08)',
+              borderWidth: 2, pointRadius: 4, tension: 0.4, fill: true,
+            }, {
+              label: 'Seuil alerte (55)',
+              data : labels.map(() => 55),
+              borderColor: 'rgba(245,158,11,.5)',
+              borderDash: [5,3], borderWidth: 1, pointRadius: 0, fill: false,
+            }]
+          },
+          options: {
+            responsive:true,
+            plugins:{ legend:{ labels:{ font:{family:'JetBrains Mono',size:10}, color:'var(--text-m)' } } },
+            scales:{
+              x:{ grid:{color:'var(--bg-h)'}, ticks:{font:{family:'JetBrains Mono',size:9}} },
+              y:{ min:0, max:100, grid:{color:'var(--bg-h)'}, ticks:{font:{family:'JetBrains Mono',size:9}} }
+            }
+          }
+        });
+      }
+
+    } catch(e) { if (container) container.innerHTML = '<div style="color:var(--red);padding:20px">Erreur analyse</div>'; }
+  };
+
+  // ── Prédictions ──────────────────────────────────────
+  const chargerPredictions = async () => {
+    try {
+      state.predictions = await api(`/predictions/${PRODUIT_ID}`);
+      renderPredictions();
+      renderChronologie();
+    } catch(e) { console.error('predictions:', e); }
+  };
+
+  const renderPredictions = () => {
+    const container = document.getElementById('predictions-list');
+    if (!container) return;
+
+    if (!state.predictions.length) {
+      container.innerHTML = '<div style="text-align:center;padding:40px;color:var(--text-m);font-family:var(--mono);font-size:12px">✅ Aucune prédiction de panne active — machines en bon état</div>';
+      return;
+    }
+
+    container.innerHTML = state.predictions.map(p => {
+      const prob    = Math.round((p.probabilite_panne || 0) * 100);
+      const probCol = prob >= 70 ? 'var(--red)' : prob >= 40 ? 'var(--orange)' : 'var(--yellow)';
+      const niveau  = p.niveau_alerte;
+
+      return `
+        <div class="pred-card ${niveau}">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px">
+            <div>
+              <div style="font-weight:700;font-size:14px">${p.composant_nom}</div>
+              <div style="font-family:var(--mono);font-size:10px;color:var(--text-m)">${new Date(p.date_prediction).toLocaleString('fr-DZ')}</div>
+            </div>
+            <div style="text-align:right">
+              <div style="font-family:var(--mono);font-size:22px;font-weight:700;color:${probCol}">${prob}%</div>
+              <div style="font-family:var(--mono);font-size:10px;color:var(--text-m)">probabilité</div>
+            </div>
+          </div>
+
+          <div style="font-family:var(--mono);font-size:11px;color:var(--text-m);margin-bottom:8px">
+            🔍 Signal : ${p.signal_declencheur || '—'}
+          </div>
+          <div style="font-size:13px;font-weight:600;margin-bottom:10px">${p.action_recommandee || '—'}</div>
+
+          ${p.rul_jours ? `<div style="font-family:var(--mono);font-size:11px;color:var(--teal);margin-bottom:10px">
+            ⏳ RUL : ${p.rul_jours} jours — panne estimée le ${p.date_panne_estimee ? new Date(p.date_panne_estimee).toLocaleDateString('fr-DZ') : '—'}
+          </div>` : ''}
+
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:10px">
+            <div style="background:rgba(217,48,37,.08);border-radius:var(--r);padding:8px;text-align:center">
+              <div style="font-family:var(--mono);font-size:9px;color:var(--text-m)">Si panne</div>
+              <div style="font-family:var(--mono);font-size:13px;font-weight:700;color:var(--red)">${fmt(p.whatif_cout_panne)} DZD</div>
+            </div>
+            <div style="background:rgba(26,138,74,.08);border-radius:var(--r);padding:8px;text-align:center">
+              <div style="font-family:var(--mono);font-size:9px;color:var(--text-m)">Prévention</div>
+              <div style="font-family:var(--mono);font-size:13px;font-weight:700;color:var(--green)">${fmt(p.whatif_cout_prev)} DZD</div>
+            </div>
+            <div style="background:var(--teal-dim);border-radius:var(--r);padding:8px;text-align:center">
+              <div style="font-family:var(--mono);font-size:9px;color:var(--teal)">Économie</div>
+              <div style="font-family:var(--mono);font-size:13px;font-weight:700;color:var(--teal)">${p.ratio_economie}x</div>
+            </div>
+          </div>
+
+          <div style="display:flex;gap:8px">
+            <button onclick="predictif.validerPrediction(${p.id},'validee')"
+              style="flex:1;padding:8px;background:rgba(26,138,74,.1);border:1px solid var(--green);color:var(--green);border-radius:var(--r);font-family:var(--font);font-size:12px;font-weight:600;cursor:pointer">
+              ✅ Panne survenue
+            </button>
+            <button onclick="predictif.validerPrediction(${p.id},'fausse')"
+              style="flex:1;padding:8px;background:var(--bg-e);border:1px solid var(--border-b);color:var(--text-m);border-radius:var(--r);font-family:var(--font);font-size:12px;cursor:pointer">
+              ❌ Fausse alerte
+            </button>
+          </div>
+        </div>
+      `;
+    }).join('');
+  };
+
+  const renderChronologie = () => {
+    const container = document.getElementById('chronologie-list');
+    if (!container) return;
+
+    const preds = state.predictions.filter(p => p.date_panne_estimee)
+      .sort((a, b) => new Date(a.date_panne_estimee) - new Date(b.date_panne_estimee));
+
+    if (!preds.length) {
+      container.innerHTML = '<div style="text-align:center;padding:30px;color:var(--text-m);font-family:var(--mono);font-size:11px">✅ Aucune intervention prévue</div>';
+      return;
+    }
+
+    const couleurs = { agir: 'var(--red)', planifier: 'var(--orange)', surveiller: 'var(--yellow)', normal: 'var(--green)' };
+
+    container.innerHTML = preds.map(p => `
+      <div class="chron-item">
+        <div class="chron-dot" style="background:${couleurs[p.niveau_alerte] || 'var(--teal)'}"></div>
+        <div style="flex:1">
+          <div style="font-weight:700;font-size:13px">${p.composant_nom}</div>
+          <div style="font-family:var(--mono);font-size:11px;color:${couleurs[p.niveau_alerte]}">
+            📅 ${new Date(p.date_panne_estimee).toLocaleDateString('fr-DZ', {day:'2-digit',month:'long',year:'numeric'})}
+          </div>
+          <div style="font-family:var(--mono);font-size:10px;color:var(--text-m);margin-top:2px">${p.action_recommandee?.substring(0,60)}…</div>
+        </div>
+        <div style="text-align:right">
+          <div style="font-family:var(--mono);font-size:18px;font-weight:700;color:${couleurs[p.niveau_alerte]}">${Math.round((p.probabilite_panne||0)*100)}%</div>
+          <div style="font-family:var(--mono);font-size:9px;color:var(--text-m)">${p.rul_jours ? `J-${p.rul_jours}` : ''}</div>
+        </div>
+      </div>
+    `).join('');
+  };
+
+  // ── Valider prédiction ────────────────────────────────
+  const validerPrediction = async (id, statut) => {
+    try {
+      await api('/valider-prediction', 'POST', { prediction_id: id, statut });
+      toast(statut === 'validee' ? '✅ Prédiction validée — fiabilité améliorée' : '❌ Fausse alerte enregistrée');
+      await chargerPredictions();
+      await chargerDashboard();
+    } catch(e) { toast('Erreur', 'error'); }
+  };
+
+  // ── Rapport mensuel ───────────────────────────────────
+  const genererRapport = async () => {
+    const mois  = document.getElementById('rapp-mois')?.value;
+    const annee = document.getElementById('rapp-annee')?.value;
+
+    try {
+      const r = await api(`/rapport/${PRODUIT_ID}?mois=${mois}&annee=${annee}`);
+      state.rapportData = r;
+
+      const container = document.getElementById('rapport-result');
+      if (!container) return;
+
+      const moisNoms = ['','Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
+
+      container.innerHTML = `
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px">
+          <div style="background:var(--bg-e);border-radius:var(--r);padding:16px;text-align:center;border:1px solid var(--border)">
+            <div style="font-family:var(--mono);font-size:10px;color:var(--text-m)">FIABILITÉ</div>
+            <div style="font-family:var(--mono);font-size:32px;font-weight:700;color:${r.taux_fiabilite>=80?'var(--green)':'var(--yellow)'}">${r.taux_fiabilite}%</div>
+          </div>
+          <div style="background:var(--bg-e);border-radius:var(--r);padding:16px;text-align:center;border:1px solid var(--border)">
+            <div style="font-family:var(--mono);font-size:10px;color:var(--text-m)">PRÉDICTIONS</div>
+            <div style="font-family:var(--mono);font-size:32px;font-weight:700">${r.nb_predictions}</div>
+          </div>
+          <div style="background:var(--bg-e);border-radius:var(--r);padding:16px;text-align:center;border:1px solid var(--border)">
+            <div style="font-family:var(--mono);font-size:10px;color:var(--green)">VALIDÉES</div>
+            <div style="font-family:var(--mono);font-size:32px;font-weight:700;color:var(--green)">${r.nb_validees}</div>
+          </div>
+          <div style="background:var(--bg-e);border-radius:var(--r);padding:16px;text-align:center;border:1px solid var(--border)">
+            <div style="font-family:var(--mono);font-size:10px;color:var(--teal)">COÛT ÉVITÉ</div>
+            <div style="font-family:var(--mono);font-size:22px;font-weight:700;color:var(--teal)">${fmt(r.cout_evite_dzd)}</div>
+            <div style="font-family:var(--mono);font-size:10px;color:var(--text-m)">DZD</div>
+          </div>
+        </div>
+
+        <div style="background:var(--bg-e);border-radius:var(--r);border:1px solid var(--border);overflow:hidden">
+          <table class="data-table">
+            <thead><tr>
+              <th>Composant</th><th>Date</th><th>Probabilité</th><th>Statut</th><th>Action</th>
+            </tr></thead>
+            <tbody>
+              ${(r.predictions || []).map(p => `
+                <tr>
+                  <td>${p.composant}</td>
+                  <td>${p.date}</td>
+                  <td style="font-family:var(--mono)">${Math.round((p.probabilite||0)*100)}%</td>
+                  <td><span class="${p.statut==='validee'?'tag-green':p.statut==='fausse'?'tag-red':'tag-yellow'}">${p.statut}</span></td>
+                  <td style="font-size:12px;color:var(--text-m)">${(p.action||'').substring(0,50)}</td>
+                </tr>`).join('')}
+              ${!r.predictions?.length ? '<tr><td colspan="5" style="text-align:center;color:var(--text-m)">Aucune prédiction ce mois</td></tr>' : ''}
+            </tbody>
+          </table>
+        </div>
+      `;
+    } catch(e) { toast('Aucune donnée pour cette période', 'warning'); }
+  };
+
+  const exporterRapport = () => {
+    if (!state.rapportData) { toast('Générez d\'abord un rapport', 'warning'); return; }
+    const r = state.rapportData;
+    const moisNoms = ['','Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
+    const contenu = [
+      `RAPPORT MAINTENANCE PRÉDICTIVE — TWINOVA`,
+      `════════════════════════════════════════`,
+      `Période        : ${moisNoms[r.mois]} ${r.annee}`,
+      `Fiabilité      : ${r.taux_fiabilite}%`,
+      `Prédictions    : ${r.nb_predictions} (${r.nb_validees} validées / ${r.nb_fausses} fausses)`,
+      `Coût évité     : ${fmt(r.cout_evite_dzd)} DZD`,
+      `────────────────────────────────────────`,
+      `DÉTAIL DES PRÉDICTIONS :`,
+      ...(r.predictions||[]).map(p => `• ${p.composant} (${p.date}) — ${Math.round((p.probabilite||0)*100)}% — ${p.statut}`),
+      ``,
+      `Généré par TWINOVA — ${new Date().toLocaleString('fr-DZ')}`,
+    ].join('\n');
+
+    const blob = new Blob([contenu], { type: 'text/plain; charset=utf-8' });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href = url;
+    a.download = `Rapport_Predictif_${moisNoms[r.mois]}_${r.annee}.txt`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  // ── Composant modal ───────────────────────────────────
+  const openAddComposant = () => {
+    document.getElementById('modal-composant').style.display = 'flex';
+  };
+
+  const sauvegarderComposant = async () => {
+    const nom = document.getElementById('nc-nom')?.value;
+    if (!nom) { toast('Entrez un nom', 'warning'); return; }
+
+    try {
+      await api('/composants', 'POST', {
+        produit_id           : PRODUIT_ID,
+        nom,
+        type_composant       : document.getElementById('nc-type')?.value || 'autre',
+        criticite            : parseInt(document.getElementById('nc-criticite')?.value) || 3,
+        duree_vie_theorique_h: parseFloat(document.getElementById('nc-duree')?.value) || null,
+        cout_remplacement    : parseFloat(document.getElementById('nc-cout')?.value) || null,
+      });
+      toast('✅ Composant ajouté');
+      document.getElementById('modal-composant').style.display = 'none';
+      await chargerComposants();
+    } catch(e) { toast('Erreur', 'error'); }
+  };
+
+  // ── Onglets ──────────────────────────────────────────
+  const switchTab = (tab) => {
+    document.querySelectorAll('[data-ptab]').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.ptab').forEach(c => c.style.display = 'none');
+    const btn = document.querySelector(`[data-ptab="${tab}"]`);
+    const cnt = document.getElementById(`ptab-${tab}`);
+    if (btn) btn.classList.add('active');
+    if (cnt) cnt.style.display = 'block';
+    if (tab === 'predictions') renderPredictions();
+    if (tab === 'rapport') genererRapport();
+  };
+
+  const refresh = async () => {
+    await init();
+    toast('✅ Données actualisées');
+  };
+
+  return {
+    init, refresh, switchTab,
+    previewHSI, saisirMesure, updateRadar,
+    voirAnalyse, analyserComposant,
+    chargerPredictions, validerPrediction,
+    genererRapport, exporterRapport,
+    openAddComposant, sauvegarderComposant,
+  };
+
+})();
+
+/* Ajouter dans navigate() :
+   if (pageId === 'predictif') setTimeout(() => predictif.init(), 50);
+*/

@@ -1,0 +1,156 @@
+<div class="page" id="page-visualisation">
+  <div class="visu-wrap" style="display:grid;grid-template-columns:260px 1fr;gap:16px;height:calc(100vh - 140px)">
+
+    <!-- ── Panneau gauche ── -->
+    <div style="display:flex;flex-direction:column;gap:12px;overflow-y:auto">
+
+      <!-- Modes de vue -->
+      <div class="card" style="padding:16px">
+        <div style="font-family:var(--mono);font-size:10px;color:var(--teal);letter-spacing:1.5px;margin-bottom:12px">🎮 MODE DE VUE</div>
+        <div style="display:flex;flex-direction:column;gap:6px">
+          <button type="button" class="visu-mode-btn active" data-mode="production" onclick="visu3d.setMode('production',this)">
+            ⚡ Production (Flux)
+          </button>
+          <button type="button" class="visu-mode-btn" data-mode="thermique" onclick="visu3d.setMode('thermique',this)">
+            🌡️ Thermique (HACCP)
+          </button>
+          <button type="button" class="visu-mode-btn" data-mode="economique" onclick="visu3d.setMode('economique',this)">
+            💸 Économique (Pertes)
+          </button>
+          <button type="button" class="visu-mode-btn" data-mode="maintenance" onclick="visu3d.setMode('maintenance',this)">
+            🔧 Maintenance (X-Ray)
+          </button>
+        </div>
+      </div>
+
+      <!-- Niveau de vue -->
+      <div class="card" style="padding:16px">
+        <div style="font-family:var(--mono);font-size:10px;color:var(--teal);letter-spacing:1.5px;margin-bottom:12px">🔍 NIVEAU DE VUE</div>
+        <div style="display:flex;flex-direction:column;gap:6px">
+          <button type="button" class="visu-level-btn active" onclick="visu3d.setLevel('usine',this)">🏭 Vue Usine (Layout)</button>
+          <button type="button" class="visu-level-btn" onclick="visu3d.setLevel('ligne',this)">⚙️ Vue Ligne (Process)</button>
+          <button type="button" class="visu-level-btn" onclick="visu3d.setLevel('machine',this)">🔩 Vue Machine</button>
+        </div>
+      </div>
+
+      <!-- KPIs temps réel -->
+      <div class="card" style="padding:16px">
+        <div style="font-family:var(--mono);font-size:10px;color:var(--teal);letter-spacing:1.5px;margin-bottom:12px">📊 KPIs EN DIRECT</div>
+        <div style="display:flex;flex-direction:column;gap:8px" id="visu-kpis">
+          <div class="visu-kpi-row"><span>TRS Global</span><span id="vkpi-trs" class="visu-kpi-val">—</span></div>
+          <div class="visu-kpi-row"><span>Temp. Process</span><span id="vkpi-temp" class="visu-kpi-val">—</span></div>
+          <div class="visu-kpi-row"><span>HSI Moyen</span><span id="vkpi-hsi" class="visu-kpi-val">—</span></div>
+          <div class="visu-kpi-row"><span>Alertes HACCP</span><span id="vkpi-haccp" class="visu-kpi-val red">—</span></div>
+          <div class="visu-kpi-row"><span>Coût énergie/h</span><span id="vkpi-energie" class="visu-kpi-val">—</span></div>
+        </div>
+      </div>
+
+      <!-- Légende -->
+      <div class="card" style="padding:16px">
+        <div style="font-family:var(--mono);font-size:10px;color:var(--teal);letter-spacing:1.5px;margin-bottom:12px">🎨 LÉGENDE</div>
+        <div id="visu-legende" style="display:flex;flex-direction:column;gap:6px">
+          <div class="legende-item"><span class="legende-dot" style="background:#00FFD1"></span><span>Normal — En production</span></div>
+          <div class="legende-item"><span class="legende-dot" style="background:#f59e0b"></span><span>Alerte — Surveiller</span></div>
+          <div class="legende-item"><span class="legende-dot" style="background:#ef4444"></span><span>Critique — Intervenir</span></div>
+          <div class="legende-item"><span class="legende-dot" style="background:#8b5cf6"></span><span>Maintenance prévue</span></div>
+          <div class="legende-item"><span class="legende-dot" style="background:#3b82f6"></span><span>CIP / Nettoyage</span></div>
+        </div>
+      </div>
+
+      <!-- Contrôles caméra -->
+      <div class="card" style="padding:16px">
+        <div style="font-family:var(--mono);font-size:10px;color:var(--teal);letter-spacing:1.5px;margin-bottom:12px">📷 CAMÉRA</div>
+        <div style="display:flex;flex-direction:column;gap:6px">
+          <button type="button" class="visu-mode-btn" onclick="visu3d.resetCamera()">↺ Vue par défaut</button>
+          <button type="button" class="visu-mode-btn" id="btn-rotation" onclick="visu3d.toggleRotation()">⏸ Arrêter rotation</button>
+          <button type="button" class="visu-mode-btn" onclick="visu3d.vueDessusDessus()">⬆️ Vue de dessus</button>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- ── Zone 3D principale ── -->
+    <div style="display:flex;flex-direction:column;gap:10px">
+
+      <!-- Barre info machine sélectionnée -->
+      <div id="visu-machine-info" class="card" style="padding:12px 18px;display:none;border-left:3px solid var(--teal)">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <div>
+            <div style="font-weight:700;font-size:14px" id="visu-machine-nom">—</div>
+            <div style="font-family:var(--mono);font-size:11px;color:var(--text-m)" id="visu-machine-details">—</div>
+          </div>
+          <div style="display:flex;gap:10px">
+            <div style="text-align:center">
+              <div style="font-family:var(--mono);font-size:18px;font-weight:700" id="visu-machine-trs">—</div>
+              <div style="font-family:var(--mono);font-size:9px;color:var(--text-m)">TRS</div>
+            </div>
+            <div style="text-align:center">
+              <div style="font-family:var(--mono);font-size:18px;font-weight:700" id="visu-machine-temp">—</div>
+              <div style="font-family:var(--mono);font-size:9px;color:var(--text-m)">TEMP</div>
+            </div>
+            <div style="text-align:center">
+              <div style="font-family:var(--mono);font-size:18px;font-weight:700" id="visu-machine-hsi">—</div>
+              <div style="font-family:var(--mono);font-size:9px;color:var(--text-m)">HSI</div>
+            </div>
+            <button type="button" class="btn-accent btn-sm" onclick="visu3d.allerModule()" id="visu-goto-btn">→ Voir détails</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Canvas Three.js -->
+      <div style="position:relative;flex:1;border-radius:var(--rl);overflow:hidden;background:#0a0f1e;border:1px solid var(--border)">
+        <canvas id="visu-canvas" style="width:100%;height:100%;display:block"></canvas>
+
+        <!-- Tooltip survol -->
+        <div id="visu-tooltip" style="display:none;position:absolute;background:rgba(10,15,30,.95);border:1px solid var(--teal);border-radius:8px;padding:10px 14px;pointer-events:none;z-index:10;backdrop-filter:blur(8px)">
+          <div style="font-weight:700;font-size:13px" id="tt-nom">—</div>
+          <div style="font-family:var(--mono);font-size:10px;color:var(--teal);margin-top:4px" id="tt-statut">—</div>
+          <div style="font-family:var(--mono);font-size:10px;color:var(--text-m);margin-top:2px" id="tt-details">—</div>
+        </div>
+
+        <!-- Indicateur mode actif -->
+        <div style="position:absolute;top:12px;left:12px;background:rgba(0,0,0,.5);border:1px solid var(--teal);border-radius:6px;padding:6px 12px;font-family:var(--mono);font-size:11px;color:var(--teal)" id="visu-mode-label">
+          ⚡ MODE PRODUCTION
+        </div>
+
+        <!-- Instructions -->
+        <div style="position:absolute;bottom:12px;right:12px;background:rgba(0,0,0,.4);border-radius:6px;padding:6px 12px;font-family:var(--mono);font-size:9px;color:var(--text-d)">
+          🖱 Clic+Glisser : Orbiter · Scroll : Zoom · Clic machine : Détails
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+.visu-mode-btn {
+  width: 100%; padding: 9px 12px; background: var(--bg-e);
+  border: 1px solid var(--border-b); border-radius: var(--r);
+  color: var(--text-m); font-family: var(--font); font-size: 13px;
+  font-weight: 600; cursor: pointer; text-align: left;
+  transition: all 0.18s;
+}
+.visu-mode-btn:hover { border-color: var(--teal); color: var(--teal); }
+.visu-mode-btn.active { background: var(--teal-dim); border-color: var(--teal); color: var(--teal); }
+
+.visu-level-btn {
+  width: 100%; padding: 8px 12px; background: var(--bg-e);
+  border: 1px solid var(--border-b); border-radius: var(--r);
+  color: var(--text-m); font-family: var(--font); font-size: 12px;
+  cursor: pointer; text-align: left; transition: all 0.18s;
+}
+.visu-level-btn:hover, .visu-level-btn.active { border-color: var(--teal); color: var(--teal); background: var(--teal-dim); }
+
+.visu-kpi-row {
+  display: flex; justify-content: space-between; align-items: center;
+  font-family: var(--mono); font-size: 11px; color: var(--text-m);
+  padding: 4px 0; border-bottom: 1px solid var(--border);
+}
+.visu-kpi-val { font-weight: 700; color: var(--text); }
+.visu-kpi-val.red { color: var(--red); }
+.visu-kpi-val.green { color: var(--green); }
+.visu-kpi-val.yellow { color: var(--yellow); }
+
+.legende-item { display: flex; align-items: center; gap: 8px; font-family: var(--mono); font-size: 10px; color: var(--text-m); }
+.legende-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+</style>

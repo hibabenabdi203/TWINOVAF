@@ -1,0 +1,423 @@
+<!-- =============================================================
+     TWINOVA — MODULE 5 : MAINTENANCE PRÉDICTIVE
+     À coller dans index.html juste avant </main>
+     NAV à ajouter dans la sidebar :
+     <a href="#" class="nav-item" data-page="predictif">
+       <svg class="nav-icon" viewBox="0 0 20 20"><path d="M10 2a8 8 0 100 16A8 8 0 0010 2zm1 11H9V9h2v4zm0-6H9V5h2v2z" fill="currentColor"/></svg>
+       Maintenance Prédictive
+     </a>
+     ============================================================= -->
+
+<div class="page" id="page-predictif">
+
+  <!-- ── Header ── -->
+  <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px">
+    <div>
+      <div class="page-title" style="font-size:22px;font-weight:700">🧠 Maintenance Prédictive</div>
+      <div class="page-sub">HSI · RUL · Radar de Risque · What-if Financier · Corrélations</div>
+    </div>
+    <div style="display:flex;gap:10px">
+      <button class="btn-outline" onclick="predictif.refresh()">🔄 Actualiser</button>
+      <button class="btn-accent" onclick="predictif.switchTab('rapport')">📄 Rapport Mensuel</button>
+    </div>
+  </div>
+
+  <!-- ── KPIs Prédictifs ── -->
+  <div class="kpi-grid">
+
+    <!-- HSI Moyen -->
+    <div class="kpi-card">
+      <div class="kpi-top">
+        <span class="kpi-name">SANTÉ MACHINES (HSI)</span>
+        <span class="kpi-status" id="pred-hsi-badge">—</span>
+      </div>
+      <div class="kpi-main">
+        <div class="kpi-number" id="pred-hsi">—</div>
+        <div class="kpi-pct">/100</div>
+        <svg class="kpi-ring" viewBox="0 0 80 80">
+          <circle cx="40" cy="40" r="32" stroke="#1a1f2e" stroke-width="6" fill="none"/>
+          <circle cx="40" cy="40" r="32" stroke="#0057b8" stroke-width="6" fill="none"
+            stroke-dasharray="201" stroke-dashoffset="100" stroke-linecap="round"
+            transform="rotate(-90 40 40)" id="ring-hsi"/>
+        </svg>
+      </div>
+      <div class="kpi-bottom">
+        <div class="kpi-target">Objectif : 75+</div>
+        <div class="kpi-delta" id="pred-hsi-delta">—</div>
+      </div>
+      <div class="kpi-formula">Health Score Index — 0 à 100</div>
+    </div>
+
+    <!-- Alertes Agir -->
+    <div class="kpi-card">
+      <div class="kpi-top">
+        <span class="kpi-name">🔴 AGIR MAINTENANT</span>
+        <span class="kpi-status critical">URGENT</span>
+      </div>
+      <div class="kpi-main">
+        <div class="kpi-number red" id="pred-agir">—</div>
+      </div>
+      <div class="kpi-bottom">
+        <div class="kpi-target" id="pred-planifier">🟠 — à planifier</div>
+        <div class="kpi-delta orange" id="pred-surveiller">🟡 — à surveiller</div>
+      </div>
+      <div class="kpi-formula">Composants en dérive critique</div>
+    </div>
+
+    <!-- Coût évité -->
+    <div class="kpi-card">
+      <div class="kpi-top">
+        <span class="kpi-name">COÛT ÉVITÉ POTENTIEL</span>
+        <span class="kpi-status ok">WHAT-IF</span>
+      </div>
+      <div class="kpi-main" style="flex-direction:column;align-items:flex-start">
+        <div class="kpi-number teal" id="pred-cout-evite" style="font-size:24px">—</div>
+      </div>
+      <div class="kpi-bottom">
+        <div class="kpi-target">Si on agit maintenant</div>
+      </div>
+      <div class="kpi-formula">Coût panne − Coût préventif</div>
+    </div>
+
+    <!-- Taux fiabilité -->
+    <div class="kpi-card">
+      <div class="kpi-top">
+        <span class="kpi-name">FIABILITÉ PRÉDICTIONS</span>
+        <span class="kpi-status" id="pred-fiab-badge">—</span>
+      </div>
+      <div class="kpi-main">
+        <div class="kpi-number" id="pred-fiabilite">—</div>
+        <div class="kpi-pct">%</div>
+      </div>
+      <div class="kpi-bottom">
+        <div class="kpi-target" id="pred-actives">— prédictions actives</div>
+      </div>
+      <div class="kpi-formula">Prédictions validées / total</div>
+    </div>
+
+  </div>
+
+  <!-- ── Ligne : Radar + Chronologie ── -->
+  <div style="display:grid;grid-template-columns:1fr 1.4fr;gap:16px;margin-top:16px">
+
+    <!-- Radar de Risque -->
+    <div class="card">
+      <div class="card-header">
+        <div>
+          <div class="card-title">📡 Radar de Santé</div>
+          <div class="card-sub">Dérive par axe — prochaines 24h</div>
+        </div>
+        <select id="radar-composant" class="btn-outline" style="font-size:12px;padding:5px 10px"
+                onchange="predictif.updateRadar()">
+          <option value="">— Composant —</option>
+        </select>
+      </div>
+      <div style="position:relative;height:220px">
+        <canvas id="radar-chart"></canvas>
+      </div>
+      <div id="radar-interpretation" style="margin-top:10px;font-family:var(--mono);font-size:11px;
+           color:var(--text-m);padding:10px;background:var(--bg-e);border-radius:var(--r);line-height:1.6"></div>
+    </div>
+
+    <!-- Chronologie du Futur -->
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">⏳ Chronologie des Interventions</div>
+        <div class="card-sub">Prévisions basées sur RUL calculé</div>
+      </div>
+      <div id="chronologie-list" style="max-height:280px;overflow-y:auto">
+        <div style="text-align:center;padding:30px;color:var(--text-m);font-family:var(--mono);font-size:12px">
+          Aucune prédiction active
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ── Onglets ── -->
+  <div class="card" style="margin-top:16px;padding:0;overflow:hidden">
+
+    <div style="display:flex;background:var(--bg-e);border-bottom:1px solid var(--border)">
+      <button class="tab-btn active" onclick="predictif.switchTab('composants')" data-ptab="composants">🔩 Composants</button>
+      <button class="tab-btn" onclick="predictif.switchTab('mesure')" data-ptab="mesure">📥 Saisie Mesure</button>
+      <button class="tab-btn" onclick="predictif.switchTab('analyse')" data-ptab="analyse">📊 Analyse & Tendances</button>
+      <button class="tab-btn" onclick="predictif.switchTab('predictions')" data-ptab="predictions">🎯 Prédictions Actives</button>
+      <button class="tab-btn" onclick="predictif.switchTab('rapport')" data-ptab="rapport">📄 Rapport</button>
+    </div>
+
+    <!-- TAB : COMPOSANTS -->
+    <div id="ptab-composants" class="ptab" style="padding:24px;display:block">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+        <div style="font-family:var(--mono);font-size:10px;color:var(--teal);letter-spacing:1.5px">ÉTAT DES COMPOSANTS</div>
+        <button class="btn-accent btn-sm" onclick="predictif.openAddComposant()">+ Ajouter</button>
+      </div>
+      <div id="composants-grid" style="display:grid;grid-template-columns:repeat(2,1fr);gap:14px"></div>
+    </div>
+
+    <!-- TAB : SAISIE MESURE -->
+    <div id="ptab-mesure" class="ptab" style="display:none;padding:24px">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px">
+        <div>
+          <div style="font-family:var(--mono);font-size:10px;color:var(--teal);letter-spacing:1.5px;margin-bottom:14px">SAISIE SIGNAUX FAIBLES</div>
+
+          <div class="form-group" style="margin-bottom:12px">
+            <label style="font-family:var(--mono);font-size:10px;color:var(--text-m)">Composant</label>
+            <select id="m-composant" style="width:100%;padding:10px;background:var(--bg-e);border:1px solid var(--border-b);border-radius:var(--r);font-family:var(--font);font-size:14px">
+              <option value="">— Sélectionner —</option>
+            </select>
+          </div>
+
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+            <div class="form-group">
+              <label style="font-family:var(--mono);font-size:10px;color:var(--text-m)">🌡️ Température (°C)</label>
+              <input type="number" id="m-temp" placeholder="Ex: 68" step="0.5"
+                style="width:100%;padding:9px;background:var(--bg-e);border:1px solid var(--border-b);border-radius:var(--r);font-family:var(--font);font-size:14px"
+                oninput="predictif.previewHSI()"/>
+            </div>
+            <div class="form-group">
+              <label style="font-family:var(--mono);font-size:10px;color:var(--text-m)">📳 Vibration (mm/s)</label>
+              <input type="number" id="m-vib" placeholder="Ex: 3.2" step="0.1"
+                style="width:100%;padding:9px;background:var(--bg-e);border:1px solid var(--border-b);border-radius:var(--r);font-family:var(--font);font-size:14px"
+                oninput="predictif.previewHSI()"/>
+            </div>
+            <div class="form-group">
+              <label style="font-family:var(--mono);font-size:10px;color:var(--text-m)">⚡ Courant (A)</label>
+              <input type="number" id="m-courant" placeholder="Ex: 12.5" step="0.1"
+                style="width:100%;padding:9px;background:var(--bg-e);border:1px solid var(--border-b);border-radius:var(--r);font-family:var(--font);font-size:14px"/>
+            </div>
+            <div class="form-group">
+              <label style="font-family:var(--mono);font-size:10px;color:var(--text-m)">🔇 Bruit (dB)</label>
+              <input type="number" id="m-bruit" placeholder="Ex: 72" step="1"
+                style="width:100%;padding:9px;background:var(--bg-e);border:1px solid var(--border-b);border-radius:var(--r);font-family:var(--font);font-size:14px"/>
+            </div>
+            <div class="form-group">
+              <label style="font-family:var(--mono);font-size:10px;color:var(--text-m)">⏱️ Micro-arrêts (min/j)</label>
+              <input type="number" id="m-micro" placeholder="Ex: 18" step="1"
+                style="width:100%;padding:9px;background:var(--bg-e);border:1px solid var(--border-b);border-radius:var(--r);font-family:var(--font);font-size:14px"
+                oninput="predictif.previewHSI()"/>
+            </div>
+            <div class="form-group">
+              <label style="font-family:var(--mono);font-size:10px;color:var(--text-m)">🧪 pH mesuré</label>
+              <input type="number" id="m-ph" placeholder="Ex: 4.3" step="0.01"
+                style="width:100%;padding:9px;background:var(--bg-e);border:1px solid var(--border-b);border-radius:var(--r);font-family:var(--font);font-size:14px"/>
+            </div>
+            <div class="form-group">
+              <label style="font-family:var(--mono);font-size:10px;color:var(--text-m)">⚙️ Rendement (%)</label>
+              <input type="number" id="m-rendement" placeholder="Ex: 96.5" step="0.1"
+                style="width:100%;padding:9px;background:var(--bg-e);border:1px solid var(--border-b);border-radius:var(--r);font-family:var(--font);font-size:14px"
+                oninput="predictif.previewHSI()"/>
+            </div>
+            <div class="form-group">
+              <label style="font-family:var(--mono);font-size:10px;color:var(--text-m)">Shift</label>
+              <select id="m-shift" style="width:100%;padding:9px;background:var(--bg-e);border:1px solid var(--border-b);border-radius:var(--r);font-family:var(--font);font-size:14px">
+                <option value="matin">Matin</option>
+                <option value="jour">Jour</option>
+                <option value="soir">Soir</option>
+                <option value="nuit">Nuit</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="form-group" style="margin-top:8px">
+            <label style="font-family:var(--mono);font-size:10px;color:var(--text-m)">Opérateur</label>
+            <input type="text" id="m-operateur" placeholder="Nom de l'opérateur"
+              style="width:100%;padding:9px;background:var(--bg-e);border:1px solid var(--border-b);border-radius:var(--r);font-family:var(--font);font-size:14px"/>
+          </div>
+
+          <button class="btn-accent" style="width:100%;margin-top:12px" onclick="predictif.saisirMesure()">
+            🧠 Analyser et Enregistrer
+          </button>
+        </div>
+
+        <!-- Preview HSI -->
+        <div>
+          <div style="font-family:var(--mono);font-size:10px;color:var(--teal);letter-spacing:1.5px;margin-bottom:14px">PRÉVISUALISATION HSI EN DIRECT</div>
+
+          <!-- Jauge HSI -->
+          <div style="position:relative;width:180px;height:180px;margin:0 auto 16px">
+            <svg viewBox="0 0 180 180" style="width:100%;height:100%">
+              <circle cx="90" cy="90" r="70" stroke="var(--bg-h)" stroke-width="14" fill="none"/>
+              <circle cx="90" cy="90" r="70" id="hsi-preview-ring"
+                stroke="var(--teal)" stroke-width="14" fill="none"
+                stroke-dasharray="440" stroke-dashoffset="220"
+                stroke-linecap="round" transform="rotate(-90 90 90)"
+                style="transition:all 0.5s ease"/>
+              <text x="90" y="82" text-anchor="middle" font-family="JetBrains Mono" font-size="32" font-weight="700" fill="var(--text)" id="hsi-preview-val">—</text>
+              <text x="90" y="102" text-anchor="middle" font-family="JetBrains Mono" font-size="12" fill="var(--text-m)">HSI / 100</text>
+              <text x="90" y="122" text-anchor="middle" font-family="JetBrains Mono" font-size="11" fill="var(--teal)" id="hsi-preview-label">Saisissez des valeurs</text>
+            </svg>
+          </div>
+
+          <!-- Niveaux référence -->
+          <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:12px">
+            <div style="text-align:center;padding:8px;background:rgba(26,138,74,.08);border-radius:var(--r);border:1px solid rgba(26,138,74,.2)">
+              <div style="font-family:var(--mono);font-size:14px;font-weight:700;color:var(--green)">75+</div>
+              <div style="font-family:var(--mono);font-size:9px;color:var(--green)">Normal</div>
+            </div>
+            <div style="text-align:center;padding:8px;background:rgba(245,158,11,.08);border-radius:var(--r);border:1px solid rgba(245,158,11,.2)">
+              <div style="font-family:var(--mono);font-size:14px;font-weight:700;color:var(--yellow)">55-74</div>
+              <div style="font-family:var(--mono);font-size:9px;color:var(--yellow)">Surveiller</div>
+            </div>
+            <div style="text-align:center;padding:8px;background:rgba(234,108,0,.08);border-radius:var(--r);border:1px solid rgba(234,108,0,.2)">
+              <div style="font-family:var(--mono);font-size:14px;font-weight:700;color:var(--orange)">35-54</div>
+              <div style="font-family:var(--mono);font-size:9px;color:var(--orange)">Planifier</div>
+            </div>
+            <div style="text-align:center;padding:8px;background:rgba(217,48,37,.08);border-radius:var(--r);border:1px solid rgba(217,48,37,.2)">
+              <div style="font-family:var(--mono);font-size:14px;font-weight:700;color:var(--red)">0-34</div>
+              <div style="font-family:var(--mono);font-size:9px;color:var(--red)">Agir !</div>
+            </div>
+          </div>
+
+          <!-- Message prédiction -->
+          <div id="mesure-prediction-result" style="display:none"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB : ANALYSE -->
+    <div id="ptab-analyse" class="ptab" style="display:none;padding:24px">
+      <div style="display:flex;gap:12px;margin-bottom:20px;align-items:center">
+        <select id="analyse-composant" style="padding:9px 14px;background:var(--bg-e);border:1px solid var(--border-b);border-radius:var(--r);font-family:var(--font);font-size:14px">
+          <option value="">— Sélectionner un composant —</option>
+        </select>
+        <button class="btn-accent" onclick="predictif.analyserComposant()">📊 Analyser</button>
+      </div>
+      <div id="analyse-result">
+        <div style="text-align:center;padding:40px;color:var(--text-m);font-family:var(--mono);font-size:12px">
+          Sélectionnez un composant et cliquez Analyser
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB : PRÉDICTIONS -->
+    <div id="ptab-predictions" class="ptab" style="display:none;padding:24px">
+      <div id="predictions-list">
+        <div style="text-align:center;padding:40px;color:var(--text-m);font-family:var(--mono);font-size:12px">
+          Aucune prédiction active
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB : RAPPORT -->
+    <div id="ptab-rapport" class="ptab" style="display:none;padding:24px">
+      <div style="display:flex;gap:10px;align-items:center;margin-bottom:20px">
+        <select id="rapp-mois" style="padding:9px;background:var(--bg-e);border:1px solid var(--border-b);border-radius:var(--r);font-family:var(--font);font-size:13px">
+          <option value="1">Janvier</option><option value="2">Février</option>
+          <option value="3">Mars</option><option value="4">Avril</option>
+          <option value="5">Mai</option><option value="6">Juin</option>
+          <option value="7">Juillet</option><option value="8">Août</option>
+          <option value="9">Septembre</option><option value="10">Octobre</option>
+          <option value="11">Novembre</option><option value="12">Décembre</option>
+        </select>
+        <input type="number" id="rapp-annee" value="2026"
+          style="padding:9px;background:var(--bg-e);border:1px solid var(--border-b);border-radius:var(--r);font-family:var(--font);font-size:13px;width:80px"/>
+        <button class="btn-accent" onclick="predictif.genererRapport()">📄 Générer</button>
+        <button class="btn-outline" onclick="predictif.exporterRapport()">⬇️ Exporter</button>
+      </div>
+      <div id="rapport-result"></div>
+    </div>
+
+  </div>
+
+  <!-- Modal ajout composant -->
+  <div id="modal-composant" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;display:none;align-items:center;justify-content:center;padding:20px">
+    <div style="background:var(--bg-s);border-radius:var(--rl);width:100%;max-width:500px;border:1px solid var(--border);box-shadow:0 20px 60px rgba(0,0,0,.2)">
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:18px 22px;border-bottom:1px solid var(--border)">
+        <div style="font-family:var(--font);font-size:16px;font-weight:700">🔩 Nouveau Composant</div>
+        <button onclick="document.getElementById('modal-composant').style.display='none'"
+          style="background:none;border:none;cursor:pointer;font-size:18px;color:var(--text-m)">✕</button>
+      </div>
+      <div style="padding:22px;display:grid;gap:12px">
+        <div class="form-group">
+          <label style="font-family:var(--mono);font-size:10px;color:var(--text-m)">Nom du composant</label>
+          <input type="text" id="nc-nom" placeholder="Ex: Pompe à lait principale"
+            style="width:100%;padding:10px;background:var(--bg-e);border:1px solid var(--border-b);border-radius:var(--r);font-family:var(--font);font-size:14px"/>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+          <div class="form-group">
+            <label style="font-family:var(--mono);font-size:10px;color:var(--text-m)">Type</label>
+            <select id="nc-type" style="width:100%;padding:10px;background:var(--bg-e);border:1px solid var(--border-b);border-radius:var(--r);font-family:var(--font);font-size:14px">
+              <option value="moteur">Moteur</option>
+              <option value="pompe">Pompe</option>
+              <option value="capteur">Capteur</option>
+              <option value="vanne">Vanne</option>
+              <option value="echangeur">Échangeur</option>
+              <option value="compresseur">Compresseur</option>
+              <option value="convoyeur">Convoyeur</option>
+              <option value="autre">Autre</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label style="font-family:var(--mono);font-size:10px;color:var(--text-m)">Criticité (1-5)</label>
+            <input type="number" id="nc-criticite" value="3" min="1" max="5"
+              style="width:100%;padding:10px;background:var(--bg-e);border:1px solid var(--border-b);border-radius:var(--r);font-family:var(--font);font-size:14px"/>
+          </div>
+          <div class="form-group">
+            <label style="font-family:var(--mono);font-size:10px;color:var(--text-m)">Durée de vie (heures)</label>
+            <input type="number" id="nc-duree" placeholder="Ex: 8760"
+              style="width:100%;padding:10px;background:var(--bg-e);border:1px solid var(--border-b);border-radius:var(--r);font-family:var(--font);font-size:14px"/>
+          </div>
+          <div class="form-group">
+            <label style="font-family:var(--mono);font-size:10px;color:var(--text-m)">Coût remplacement (DZD)</label>
+            <input type="number" id="nc-cout" placeholder="Ex: 185000"
+              style="width:100%;padding:10px;background:var(--bg-e);border:1px solid var(--border-b);border-radius:var(--r);font-family:var(--font);font-size:14px"/>
+          </div>
+        </div>
+        <button class="btn-accent" style="width:100%" onclick="predictif.sauvegarderComposant()">💾 Enregistrer</button>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<style>
+.ptab { display: none; }
+.ptab-active { display: block; }
+
+/* Composant card */
+.composant-card {
+  background: var(--bg-s);
+  border: 1px solid var(--border);
+  border-radius: var(--rl);
+  padding: 18px;
+  border-left: 4px solid var(--teal);
+  transition: all 0.18s;
+  cursor: pointer;
+}
+.composant-card:hover { border-color: var(--teal); box-shadow: 0 4px 16px var(--teal-glow); }
+.composant-card.alerte-agir      { border-left-color: var(--red); }
+.composant-card.alerte-planifier { border-left-color: var(--orange); }
+.composant-card.alerte-surveiller{ border-left-color: var(--yellow); }
+
+/* Barre usure */
+.usure-bar { height: 5px; background: var(--bg-h); border-radius: 3px; overflow: hidden; margin-top: 6px; }
+.usure-fill{ height: 100%; border-radius: 3px; transition: width 0.5s; }
+
+/* Prédiction card */
+.pred-card {
+  background: var(--bg-s);
+  border: 1px solid var(--border);
+  border-radius: var(--rl);
+  padding: 18px;
+  margin-bottom: 12px;
+  border-left: 4px solid;
+}
+.pred-card.agir      { border-left-color: var(--red);    background: rgba(217,48,37,.03); }
+.pred-card.planifier { border-left-color: var(--orange);  background: rgba(234,108,0,.03); }
+.pred-card.surveiller{ border-left-color: var(--yellow);  background: rgba(245,158,11,.03); }
+
+/* Chronologie */
+.chron-item {
+  display: flex;
+  gap: 14px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--border);
+  align-items: flex-start;
+}
+.chron-dot {
+  width: 10px; height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  margin-top: 5px;
+}
+</style>
