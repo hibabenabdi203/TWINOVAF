@@ -21,7 +21,8 @@ from database import init_db, get_db, SessionLocal, Produit, Enregistrement
 from auth import Utilisateur, chiffrer_mdp, verifier_mdp, creer_token, verifier_token
 from models import ProduitCreate, SaisieCreate, SimulationRequest
 from kpi import calculer_kpi
-
+from machine_models import seed_machine_demo
+from machine_routes import router_machine
 # ── Créer l'application ──────────────────────────
 app = FastAPI(
     title="TWINOVA API",
@@ -46,6 +47,7 @@ app.include_router(router_energie)
 app.include_router(router_predictif)
 app.include_router(router_benchmark)
 app.include_router(router_greenfield)
+app.include_router(router_machine)
 # ── Créer les tables au démarrage ────────────────
 @app.on_event("startup")
 def startup():
@@ -56,6 +58,8 @@ def startup():
     seed_predictif_demo(db)
     seed_benchmark_demo(db)
     seed_greenfield_demo(db)
+    seed_machine_demo(db)
+    
 
     db.close()
     # Créer la table utilisateurs
