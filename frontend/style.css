@@ -168,6 +168,8 @@ body {
   font-size: 22px;
   font-weight: 700;
   letter-spacing: 1px;
+  margin-left: 40px;
+  transition: margin-left 0.3s ease;
 }
 .page-sub {
   font-family: var(--mono);
@@ -1705,4 +1707,84 @@ input[type=range]::-webkit-slider-thumb { -webkit-appearance:none; width:13px; h
     right: 16px;
     bottom: 16px;
   }
+}
+/* ── SIDEBAR RÉTRACTABLE ── */
+.sidebar {
+  transition: width 0.3s ease, transform 0.3s ease;
+}
+
+.sidebar.collapsed {
+  width: 0;
+  overflow: hidden;
+  border-right: none;
+}
+
+.main.sidebar-collapsed {
+  margin-left: 0;
+}
+
+.btn-toggle-sidebar {
+  position: fixed;
+  top: 12px;
+  left: 12px;
+  z-index: 1000;
+  background: var(--bg-s);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 12px;
+  cursor: pointer;
+  color: var(--text);
+  font-size: 18px;
+  transition: all 0.2s;
+  display: block !important;
+}
+
+.btn-toggle-sidebar:hover {
+  background: var(--teal-dim);
+  color: var(--teal);
+}
+@media (max-width: 768px) {
+
+  :root { --sw: 0px; }
+
+  .sidebar {
+    width: 230px !important;
+    transform: translateX(-230px);
+    transition: transform 0.3s ease;
+    z-index: 999;
+  }
+
+  .sidebar.mobile-open {
+    transform: translateX(0) !important;
+  }
+
+  .main {
+    margin-left: 0 !important;
+    width: 100% !important;
+  }
+
+  .page-title { margin-left: 40px; font-size: 16px; }
+
+  .kpi-grid   { grid-template-columns: repeat(2, 1fr) !important; gap: 10px; }
+  .charts-row { grid-template-columns: 1fr !important; }
+  .bottom-row { grid-template-columns: 1fr !important; }
+  .form-grid-3   { grid-template-columns: 1fr !important; }
+  .form-grid-2col{ grid-template-columns: 1fr !important; }
+
+  .visu-wrap {
+    grid-template-columns: 1fr !important;
+    height: auto !important;
+  }
+
+  .topbar-right .btn-outline { display: none; }
+
+  /* Overlay sombre quand sidebar ouverte */
+  .sidebar-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.5);
+    z-index: 998;
+  }
+  .sidebar-overlay.active { display: block; }
 }

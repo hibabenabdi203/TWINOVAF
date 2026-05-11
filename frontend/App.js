@@ -94,7 +94,51 @@ async function chargerPlanAction(produitId = 2) {
         </div>
       `;
     }
+// ── Liaison Machine → Plan d'Action ──────────────────
+try {
+  const machinesRes = await fetch('http://localhost:8000/machines/');
+  const machines = await machinesRes.json();
+  
+  const critiques = machines.filter(m => 
+    m.monitoring?.niveau_alerte === 'critique' ||
+    m.statut === 'panne'
+  );
 
+  if (critiques.length > 0 && grid) {
+    const machineCards = critiques.map((m, i) => {
+      const alertes = m.monitoring?.alertes || [];
+      const msg = alertes.length > 0 ? alertes[0].message : `Machine en ${m.statut}`;
+      return `
+        <div class="decision-card decision-critical">
+          <div class="decision-num">🏭 MACHINE</div>
+          <div class="decision-title">🔴 ${m.nom} — ${m.statut.toUpperCase()}</div>
+          <div class="decision-problem">
+            <div class="dp-label">ANOMALIE DÉTECTÉE</div>
+            <div class="dp-text">${msg}</div>
+          </div>
+          <div class="decision-action">
+            <div class="dp-label">ACTION CONCRÈTE</div>
+            <div class="dp-text">Intervenir immédiatement sur la machine ${m.nom} (${m.code_machine}). HSI actuel : ${m.monitoring?.hsi ?? '--'}%</div>
+          </div>
+          <div class="decision-impact">
+            <div class="di-item">
+              <span class="di-label">HSI</span>
+              <span class="di-val teal">${m.monitoring?.hsi ?? '--'}%</span>
+            </div>
+            <div class="di-item">
+              <span class="di-label">RUL</span>
+              <span class="di-val teal">${m.monitoring?.rul_heures ?? '--'} h</span>
+            </div>
+          </div>
+          <div class="decision-urgency critical-bg">⚡ Urgence : Immédiatement</div>
+        </div>`;
+    }).join('');
+    
+    grid.innerHTML = machineCards + grid.innerHTML;
+  }
+} catch(e) {
+  console.warn('Liaison Machine Plan Action:', e);
+}
   } catch(e) {
     console.error('Erreur Plan Action:', e);
   }
@@ -690,7 +734,45 @@ async function creerLot() {
     if (result.dlc_calculee) {
       ajouterTimeline(`DLC calculée : ${result.dlc_calculee.split('T')[0]}`, 'alerte-ok');
     }
+// ── Liaison Lot → 3D ─────────────────────────────────
+try {
+  const recettes = await fetch('https://twinovaf.onrender.com/recettes').then(r => r.json());
+  const recette = recettes.find(r => r.id === recetteId);
+  
+  if (recette && typeof updateMachinesData3D === 'function') {
+    // Déterminer la machine 3D selon la catégorie de recette
+    const categorieToCode = {
+      'Thermique Chaud': 'MAC-LAIT-001',  // Pasteurisateur
+      'Fermentation & pH': 'MAC-LAIT-002', // Cuve Fermentation
+      'Thermique Froid': 'MAC-LAIT-003',   // Conditionneuse
+    };
+    
+    const codesMachine = Object.entries(categorieToCode)
+      .filter(([cat]) => recette.categorie?.includes(cat) || recette.nom?.toLowerCase().includes('pasteur'))
+      .map(([, code]) => code);
 
+    if (codesMachine.length > 0) {
+      const alerte = result.niveau_alerte === 'critique' ? 'critical' 
+                   : result.niveau_alerte === 'mineure'  ? 'warning' : 'normal';
+      
+      const fakeData = codesMachine.map(code => ({
+        code_machine: code,
+        statut: alerte === 'critical' ? 'panne' : 'en_marche',
+        temperature: data.temperature_reelle,
+        hsi: alerte === 'critical' ? 55 : 85,
+        taux_disponibilite: alerte === 'critical' ? 70 : 95,
+        niveau_alerte: result.niveau_alerte || 'aucune',
+        alertes: result.alertes || []
+      }));
+      
+      updateMachinesData3D(fakeData);
+    }
+    // Resynchroniser la 3D avec les vraies données backend
+if (typeof syncComplet3D === 'function') syncComplet3D();
+  }
+} catch(e) {
+  console.warn('Liaison Lot 3D:', e);
+}
   } catch(e) {
     console.error('Erreur création lot:', e);
   }
@@ -1231,14 +1313,22 @@ function navigate(pageId) {
       if (!visu3dInitialise) {
         visu3d.init();
         visu3dInitialise = true;
+        setInterval(() => {
+  if (typeof syncComplet3D === 'function') syncComplet3D();
+}, 30000);
       }
+      if (typeof syncComplet3D === 'function') syncComplet3D();
     }, 100);
   }
   if (pageId === 'compte') setTimeout(() => {
     const user = JSON.parse(localStorage.getItem('twinova_user'));
     if (user) ouvrirPlateforme(user);
   }, 50);
-  if (pageId === 'haccp') setTimeout(() => haccp.init(), 50);
+  if (pageId === 'haccp') setTimeout(async () => {
+  await haccp.init();
+  haccp.switchTab('alertes');
+  await liaisonMachineHaccp();
+}, 50);
   if (pageId === 'energie') setTimeout(() => energie.init(), 50);
   if (pageId === 'intelligence') setTimeout(() => predictif.init(), 100);
   if (pageId === 'benchmark') {
@@ -1247,6 +1337,8 @@ function navigate(pageId) {
   if (pageId === 'greenfield') setTimeout(() => greenfield.init(), 50);
 
   window.scrollTo(0, 0);
+  if (pageId === 'machine') setTimeout(() => initMachineModule(), 50); {
+}
 }
 
 document.querySelectorAll('.nav-item').forEach(item => {
@@ -1790,6 +1882,41 @@ async function chargerHistorique() {
   }
 }
 // ── DASHBOARD — connecté au backend ──────────────────
+async function liaisonMachineHaccp() {
+  try {
+    const res = await fetch('http://localhost:8000/machines/');
+    const machines = await res.json();
+    
+    const critiques = machines.filter(m => 
+      m.monitoring?.niveau_alerte === 'critique' ||
+      m.monitoring?.niveau_alerte === 'attention'
+    );
+
+    if (critiques.length === 0) return;
+
+    const container = document.getElementById('alertes-list');
+    if (!container) return;
+
+    const html = critiques.map(m => {
+      const alertes = m.monitoring?.alertes || [];
+      return alertes.map(a => `
+        <div class="alerte-card alerte-critique">
+          <div class="alerte-header">
+            <span class="alerte-titre">🏭 MACHINE — ${m.nom} (${m.code_machine})</span>
+          </div>
+          <div class="alerte-message">${a.message}</div>
+          <div class="alerte-action">Action requise : Vérifier la machine et corriger l'anomalie</div>
+          <div class="alerte-footer">
+            <span class="alerte-time">${m.monitoring?.date_saisie ? new Date(m.monitoring.date_saisie).toLocaleString('fr-DZ') : '--'}</span>
+          </div>
+        </div>`).join('');
+    }).join('');
+
+    container.innerHTML = html + container.innerHTML;
+  } catch(e) {
+    console.warn('Liaison Machine HACCP:', e);
+  }
+}
 async function chargerDashboard() {
   try {
     const response = await fetch('https://twinovaf.onrender.com/historique/2');
@@ -1853,6 +1980,27 @@ async function chargerDashboard() {
     // ── Mettre à jour le score de santé ──────────────
     const score = Math.round((kpi.trs + kpi.disponibilite + kpi.performance + kpi.qualite) / 4);
     set('scoreValue', score);
+    // ── Liaison Machine → Dashboard ──────────────────────
+try {
+  const machinesRes = await fetch('http://localhost:8000/machines/');
+  const machines = await machinesRes.json();
+  
+  const alertesCritiques = machines.filter(m => 
+    m.niveau_alerte === 'critique' || m.statut === 'panne'
+  );
+  
+  const alertesContainer = document.querySelector('.score-alerts');
+  if (alertesContainer && alertesCritiques.length > 0) {
+    const machineAlertes = alertesCritiques.map(m => `
+      <div class="alert-item critical">
+        <span class="alert-dot"></span>
+        <span>🔴 Machine ${m.nom} — ${m.statut.toUpperCase()} · HSI: ${m.monitoring?.hsi ?? '--'}%</span>
+      </div>`).join('');
+    alertesContainer.innerHTML = machineAlertes + alertesContainer.innerHTML;
+  }
+} catch(e) {
+  console.warn('Liaison machines dashboard:', e);
+}
     const scoreBar = document.getElementById('scoreBar');
     if (scoreBar) scoreBar.style.width = score + '%';
 
@@ -1969,6 +2117,40 @@ window.haccp = (() => {
       refreshIndicateurs(),
       loadAlertes(),
     ]);
+    // ── Liaison Machine → HACCP ──────────────────────────
+try {
+  const machinesRes = await fetch('http://localhost:8000/machines/');
+  const machines = await machinesRes.json();
+  
+  const machinesCritiques = machines.filter(m => 
+    m.monitoring?.niveau_alerte === 'critique' ||
+    m.monitoring?.niveau_alerte === 'attention'
+  );
+
+  if (machinesCritiques.length > 0) {
+    const container = document.getElementById('alertes-list');
+    if (container) {
+      const machineAlertes = machinesCritiques.map(m => {
+        const alertes = m.monitoring?.alertes || [];
+        return alertes.map(a => `
+          <div class="alerte-card alerte-critique">
+            <div class="alerte-header">
+              <span class="alerte-titre">🏭 MACHINE — ${m.nom} (${m.code_machine})</span>
+            </div>
+            <div class="alerte-message">${a.message}</div>
+            <div class="alerte-action">Action requise : Vérifier la machine et corriger l'anomalie</div>
+            <div class="alerte-footer">
+              <span class="alerte-time">${m.monitoring?.date_saisie ? new Date(m.monitoring.date_saisie).toLocaleString('fr-DZ') : '--'}</span>
+            </div>
+          </div>`).join('');
+      }).join('');
+
+      container.innerHTML = machineAlertes + container.innerHTML;
+    }
+  }
+} catch(e) {
+  console.warn('Liaison Machine HACCP:', e);
+}
   };
 
   // ── Charger plans HACCP ─────────────────────────────────
@@ -4796,3 +4978,28 @@ window.addEventListener('load', () => {
         await initLossChart();
     }, 1000);
 });
+function toggleSidebar() {
+  const sidebar  = document.querySelector('.sidebar');
+  const isMobile = window.innerWidth <= 768;
+
+  if (isMobile) {
+    sidebar.classList.toggle('mobile-open');
+
+    // Overlay
+    let overlay = document.querySelector('.sidebar-overlay');
+    if (!overlay) {
+      overlay = document.createElement('div');
+      overlay.className = 'sidebar-overlay';
+      overlay.onclick = () => {
+        sidebar.classList.remove('mobile-open');
+        overlay.classList.remove('active');
+      };
+      document.body.appendChild(overlay);
+    }
+    overlay.classList.toggle('active');
+  } else {
+    const main = document.querySelector('.main');
+    sidebar.classList.toggle('collapsed');
+    main.classList.toggle('sidebar-collapsed');
+  }
+}

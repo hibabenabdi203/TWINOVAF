@@ -2,7 +2,7 @@
 <html lang="fr">
 <head>
   <meta charset="UTF-8"/>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
   <title>TWINOVA — Digital Model Industriel</title>
   <link rel="icon" type="image/png" href="logo.png"/>
   <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=JetBrains+Mono:wght@300;400;600&display=swap" rel="stylesheet"/>
@@ -10,14 +10,17 @@
   <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/renderers/CSS2DRenderer.js"></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"/>
   
   <link rel="stylesheet" href="style.css"/>
+  <link rel="stylesheet" href="machine_styles.css">
 </head>
 <body>
 
   <!-- ═══════════════════════════════════════════
        SIDEBAR
   ═══════════════════════════════════════════ -->
+  <button class="btn-toggle-sidebar" onclick="toggleSidebar()" title="Menu">☰</button>
   <!-- ═══════════════════════════════════════════════════
      PAGE CONNEXION / INSCRIPTION
 ═══════════════════════════════════════════════════ -->
@@ -138,6 +141,10 @@
 
       <a href="#" class="nav-item" data-page="haccp">
     🛡️ HACCP & Sécurité
+</a>
+<a href="#" class="nav-item" data-page="machine">
+  <i class="fas fa-industry"></i>
+  Twin Machine
 </a>
     </nav>
 
@@ -1226,6 +1233,404 @@
     </div>
   </div>
 </div>
+<!-- ===== TWIN MACHINE SECTION ===== -->
+<div id="page-machine" class="page" style="display:none;">
+
+  <!-- ── HEADER ── -->
+  <div class="section-header">
+    <h2><i class="fas fa-industry"></i> Twin Machine — Parc Machines</h2>
+    <p class="section-subtitle">Surveillance en temps réel · Monitoring · Maintenance</p>
+  </div>
+
+  <!-- ── TABS ── -->
+  <div class="machine-tabs">
+    <button class="machine-tab active" onclick="switchMachineTab('dashboard')">
+      <i class="fas fa-tachometer-alt"></i> Dashboard Global
+    </button>
+    <button class="machine-tab" onclick="switchMachineTab('liste')">
+      <i class="fas fa-list"></i> Liste Machines
+    </button>
+    <button class="machine-tab" onclick="switchMachineTab('saisie')">
+      <i class="fas fa-edit"></i> Saisie Monitoring
+    </button>
+    <button class="machine-tab" onclick="switchMachineTab('maintenance')">
+      <i class="fas fa-wrench"></i> Maintenance
+    </button>
+  </div>
+
+  <!-- ══════════════════════════════════════
+       TAB 1 — DASHBOARD GLOBAL
+  ══════════════════════════════════════ -->
+  <div id="machine-tab-dashboard" class="machine-tab-content active">
+
+    <!-- KPI Cards -->
+    <div class="machine-kpi-grid" id="machine-kpi-grid">
+      <div class="machine-kpi-card">
+        <div class="kpi-icon"><i class="fas fa-heartbeat"></i></div>
+        <div class="kpi-value" id="kpi-hsi-moyen">--</div>
+        <div class="kpi-label">HSI Moyen Parc</div>
+      </div>
+      <div class="machine-kpi-card">
+        <div class="kpi-icon green"><i class="fas fa-play-circle"></i></div>
+        <div class="kpi-value" id="kpi-en-marche">--</div>
+        <div class="kpi-label">En Marche</div>
+      </div>
+      <div class="machine-kpi-card">
+        <div class="kpi-icon orange"><i class="fas fa-tools"></i></div>
+        <div class="kpi-value" id="kpi-maintenance">--</div>
+        <div class="kpi-label">En Maintenance</div>
+      </div>
+      <div class="machine-kpi-card">
+        <div class="kpi-icon red"><i class="fas fa-exclamation-triangle"></i></div>
+        <div class="kpi-value" id="kpi-alertes">--</div>
+        <div class="kpi-label">Alertes Actives</div>
+      </div>
+      <div class="machine-kpi-card">
+        <div class="kpi-icon blue"><i class="fas fa-clock"></i></div>
+        <div class="kpi-value" id="kpi-dispo-moyenne">--</div>
+        <div class="kpi-label">Disponibilité Moyenne</div>
+      </div>
+      <div class="machine-kpi-card">
+        <div class="kpi-icon purple"><i class="fas fa-hourglass-half"></i></div>
+        <div class="kpi-value" id="kpi-rul-min">--</div>
+        <div class="kpi-label">RUL Min (h)</div>
+      </div>
+    </div>
+
+    <!-- Alertes actives -->
+    <div class="machine-card mt-20">
+      <div class="machine-card-header">
+        <h3><i class="fas fa-bell"></i> Alertes Actives</h3>
+        <span class="badge-refresh" onclick="loadMachineDashboard()"><i class="fas fa-sync-alt"></i> Actualiser</span>
+      </div>
+      <div id="alertes-container">
+        <p class="loading-text"><i class="fas fa-spinner fa-spin"></i> Chargement...</p>
+      </div>
+    </div>
+
+    <!-- Statut parc visuel -->
+    <div class="machine-card mt-20">
+      <div class="machine-card-header">
+        <h3><i class="fas fa-th-large"></i> Vue Parc — Statut Machines</h3>
+      </div>
+      <div id="parc-visuel-grid" class="parc-grid"></div>
+    </div>
+
+  </div><!-- /dashboard -->
+
+  <!-- ══════════════════════════════════════
+       TAB 2 — LISTE MACHINES
+  ══════════════════════════════════════ -->
+  <div id="machine-tab-liste" class="machine-tab-content" style="display:none;">
+
+    <div class="machine-card">
+      <div class="machine-card-header">
+        <h3><i class="fas fa-list-ul"></i> Machines du Parc</h3>
+        <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+          <select id="filter-statut" onchange="filterMachines()" class="machine-select">
+            <option value="">Tous statuts</option>
+            <option value="en_marche">En marche</option>
+            <option value="arret">Arrêt</option>
+            <option value="maintenance">Maintenance</option>
+            <option value="panne">Panne</option>
+          </select>
+          <select id="filter-alerte" onchange="filterMachines()" class="machine-select">
+            <option value="">Toutes alertes</option>
+            <option value="aucune">Aucune</option>
+            <option value="attention">Attention</option>
+            <option value="critique">Critique</option>
+          </select>
+          <button class="btn-nouvelle-machine" onclick="ouvrirModalNouvelleMachine()">
+            <i class="fas fa-plus"></i> Nouvelle Machine
+          </button>
+        </div>
+      </div>
+      <div id="machines-liste-container">
+        <p class="loading-text"><i class="fas fa-spinner fa-spin"></i> Chargement...</p>
+      </div>
+    </div>
+
+    <!-- Fiche détaillée (affichée au clic) -->
+    <div id="machine-fiche" class="machine-card mt-20" style="display:none;">
+      <div class="machine-card-header">
+        <h3><i class="fas fa-microchip"></i> Fiche Machine — <span id="fiche-nom"></span></h3>
+        <button class="btn-fermer" onclick="fermerFiche()"><i class="fas fa-times"></i> Fermer</button>
+      </div>
+      <div id="fiche-content"></div>
+    </div>
+
+  </div><!-- /liste -->
+
+  <!-- ══════════════════════════════════════
+       TAB 3 — SAISIE MONITORING
+  ══════════════════════════════════════ -->
+  <div id="machine-tab-saisie" class="machine-tab-content" style="display:none;">
+
+    <div class="machine-card">
+      <div class="machine-card-header">
+        <h3><i class="fas fa-pencil-alt"></i> Saisie Monitoring Machine</h3>
+      </div>
+
+      <div class="form-grid-2col">
+
+        <div class="form-group">
+          <label>Machine *</label>
+          <select id="saisie-machine-id" class="machine-select" onchange="onSelectMachine()">
+            <option value="">-- Choisir une machine --</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label>Opérateur *</label>
+          <input type="text" id="saisie-operateur" class="machine-input" placeholder="Nom de l'opérateur">
+        </div>
+
+        <div class="form-group">
+          <label>Statut machine *</label>
+          <select id="saisie-statut" class="machine-select">
+            <option value="en_marche">✅ En marche</option>
+            <option value="arret">⏹️ Arrêt</option>
+            <option value="maintenance">🔧 Maintenance</option>
+            <option value="panne">🔴 Panne</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label>Température (°C)</label>
+          <input type="number" id="saisie-temperature" class="machine-input" step="0.1" placeholder="ex: 72.5">
+        </div>
+
+        <div class="form-group">
+          <label>Pression (bar)</label>
+          <input type="number" id="saisie-pression" class="machine-input" step="0.1" placeholder="ex: 3.2">
+        </div>
+
+        <div class="form-group">
+          <label>Vibration (mm/s)</label>
+          <input type="number" id="saisie-vibration" class="machine-input" step="0.1" placeholder="ex: 1.8">
+        </div>
+
+        <div class="form-group">
+          <label>Vitesse réelle</label>
+          <input type="number" id="saisie-vitesse" class="machine-input" step="1" placeholder="ex: 5000">
+        </div>
+
+        <div class="form-group">
+          <label>Courant ampère (A)</label>
+          <input type="number" id="saisie-courant" class="machine-input" step="0.1" placeholder="ex: 85.0">
+        </div>
+
+        <div class="form-group">
+          <label>Consommation énergie (kWh)</label>
+          <input type="number" id="saisie-consommation" class="machine-input" step="0.1" placeholder="ex: 42.0">
+        </div>
+
+        <div class="form-group">
+          <label>Heures fonctionnement (h)</label>
+          <input type="number" id="saisie-heures" class="machine-input" step="1" placeholder="ex: 2450">
+        </div>
+
+        <div class="form-group">
+          <label>Nombre de cycles</label>
+          <input type="number" id="saisie-cycles" class="machine-input" step="1" placeholder="ex: 12500">
+        </div>
+
+        <div class="form-group">
+          <label>Production / heure</label>
+          <input type="number" id="saisie-production" class="machine-input" step="1" placeholder="ex: 4800">
+        </div>
+
+        <div class="form-group full-col">
+          <label>Notes / Observations</label>
+          <textarea id="saisie-notes" class="machine-textarea" rows="3" placeholder="Observations de l'opérateur..."></textarea>
+        </div>
+
+      </div><!-- /form-grid -->
+
+      <div class="form-actions">
+        <button class="btn-reset" onclick="resetSaisieForm()"><i class="fas fa-undo"></i> Réinitialiser</button>
+        <button class="btn-submit" onclick="soumettreMonitoring()"><i class="fas fa-save"></i> Enregistrer la saisie</button>
+      </div>
+
+      <div id="saisie-message" class="saisie-message" style="display:none;"></div>
+    </div>
+
+  </div><!-- /saisie -->
+
+  <!-- ══════════════════════════════════════
+       TAB 4 — MAINTENANCE
+  ══════════════════════════════════════ -->
+  <div id="machine-tab-maintenance" class="machine-tab-content" style="display:none;">
+
+    <div class="machine-card">
+      <div class="machine-card-header">
+        <h3><i class="fas fa-tools"></i> Plan de Maintenance</h3>
+        <select id="maint-machine-select" class="machine-select" onchange="loadMaintenance()">
+          <option value="">-- Choisir une machine --</option>
+        </select>
+      </div>
+      <div id="maintenance-container">
+        <p class="info-text"><i class="fas fa-info-circle"></i> Sélectionnez une machine pour voir son historique de maintenance.</p>
+      </div>
+    </div>
+
+    <!-- Formulaire ajout maintenance -->
+    <div class="machine-card mt-20">
+      <div class="machine-card-header">
+        <h3><i class="fas fa-plus-circle"></i> Planifier une Maintenance</h3>
+      </div>
+      <div class="form-grid-2col">
+        <div class="form-group">
+          <label>Machine *</label>
+          <select id="maint-form-machine" class="machine-select">
+            <option value="">-- Choisir --</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Type *</label>
+          <select id="maint-type" class="machine-select">
+            <option value="preventive">🔵 Préventive</option>
+            <option value="corrective">🔴 Corrective</option>
+            <option value="predictive">🟠 Prédictive</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Date planifiée *</label>
+          <input type="date" id="maint-date" class="machine-input">
+        </div>
+        <div class="form-group">
+          <label>Durée estimée (h)</label>
+          <input type="number" id="maint-duree" class="machine-input" placeholder="ex: 4">
+        </div>
+        <div class="form-group">
+          <label>Technicien assigné</label>
+          <input type="text" id="maint-technicien" class="machine-input" placeholder="Nom du technicien">
+        </div>
+        <div class="form-group">
+          <label>Coût estimé (DZD)</label>
+          <input type="number" id="maint-cout" class="machine-input" placeholder="ex: 15000">
+        </div>
+        <div class="form-group full-col">
+          <label>Description des travaux</label>
+          <textarea id="maint-description" class="machine-textarea" rows="3" placeholder="Décrire les travaux à effectuer..."></textarea>
+        </div>
+      </div>
+      <div class="form-actions">
+        <button class="btn-submit" onclick="planifierMaintenance()"><i class="fas fa-calendar-plus"></i> Planifier</button>
+      </div>
+      <div id="maint-message" class="saisie-message" style="display:none;"></div>
+    </div>
+
+  </div><!-- /maintenance -->
+<!-- MODAL NOUVELLE MACHINE -->
+<div id="modal-nouvelle-machine" class="modal-machine-overlay" style="display:none" onclick="fermerModalMachine(event)">
+  <div class="modal-machine-box" onclick="event.stopPropagation()">
+    <div class="modal-machine-header">
+      <h3><i class="fas fa-industry"></i> Nouvelle Machine</h3>
+      <button class="modal-machine-close" onclick="fermerModalMachine()"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="modal-machine-body">
+      <div class="modal-section-title">Identification</div>
+      <div class="form-grid-2col">
+        <div class="form-group">
+          <label>Code Machine *</label>
+          <input type="text" id="nm-code" class="machine-input" placeholder="ex: MAC-LAIT-011"/>
+        </div>
+        <div class="form-group">
+          <label>Nom de la machine *</label>
+          <input type="text" id="nm-nom" class="machine-input" placeholder="ex: Homogénéisateur"/>
+        </div>
+        <div class="form-group">
+          <label>Catégorie *</label>
+          <select id="nm-categorie" class="machine-select">
+            <option value="Thermique">Thermique</option>
+            <option value="Fermentation">Fermentation</option>
+            <option value="Conditionnement">Conditionnement</option>
+            <option value="Manutention">Manutention</option>
+            <option value="Réception">Réception</option>
+            <option value="Transformation">Transformation</option>
+            <option value="Supervision">Supervision</option>
+            <option value="Utilités">Utilités</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Statut initial</label>
+          <select id="nm-statut" class="machine-select">
+            <option value="arret">⏹️ Arrêt</option>
+            <option value="en_marche">✅ En marche</option>
+            <option value="maintenance">🔧 Maintenance</option>
+          </select>
+        </div>
+        <div class="form-group full-col">
+          <label>Description</label>
+          <textarea id="nm-description" class="machine-textarea" rows="2" placeholder="Description de la machine..."></textarea>
+        </div>
+      </div>
+      <div class="modal-section-title" style="margin-top:16px">Fabricant & Installation</div>
+      <div class="form-grid-2col">
+        <div class="form-group">
+          <label>Marque</label>
+          <input type="text" id="nm-marque" class="machine-input" placeholder="ex: KRONES"/>
+        </div>
+        <div class="form-group">
+          <label>Modèle</label>
+          <input type="text" id="nm-modele" class="machine-input" placeholder="ex: VMF-3000"/>
+        </div>
+        <div class="form-group">
+          <label>Numéro de série</label>
+          <input type="text" id="nm-serie" class="machine-input" placeholder="ex: SN-2024-001"/>
+        </div>
+        <div class="form-group">
+          <label>Année d'installation</label>
+          <input type="number" id="nm-annee" class="machine-input" placeholder="ex: 2024"/>
+        </div>
+        <div class="form-group">
+          <label>Durée de vie (ans)</label>
+          <input type="number" id="nm-duree-vie" class="machine-input" placeholder="ex: 15"/>
+        </div>
+        <div class="form-group">
+          <label>Localisation</label>
+          <input type="text" id="nm-localisation" class="machine-input" placeholder="ex: Atelier Thermique"/>
+        </div>
+      </div>
+      <div class="modal-section-title" style="margin-top:16px">Caractéristiques Techniques</div>
+      <div class="form-grid-2col">
+        <div class="form-group">
+          <label>Puissance (kW)</label>
+          <input type="number" id="nm-puissance" class="machine-input" step="0.1" placeholder="ex: 22.0"/>
+        </div>
+        <div class="form-group">
+          <label>Capacité max</label>
+          <input type="number" id="nm-capacite" class="machine-input" step="1" placeholder="ex: 3000"/>
+        </div>
+        <div class="form-group">
+          <label>Unité capacité</label>
+          <input type="text" id="nm-unite" class="machine-input" placeholder="ex: bouteilles/h"/>
+        </div>
+        <div class="form-group">
+          <label>Consommation eau (L/h)</label>
+          <input type="number" id="nm-eau" class="machine-input" step="0.1" placeholder="ex: 30.0"/>
+        </div>
+        <div class="form-group">
+          <label>Température max (°C)</label>
+          <input type="number" id="nm-temp-max" class="machine-input" step="0.1" placeholder="ex: 95"/>
+        </div>
+        <div class="form-group">
+          <label>Pression max (bar)</label>
+          <input type="number" id="nm-pression-max" class="machine-input" step="0.1" placeholder="ex: 5.0"/>
+        </div>
+      </div>
+      <div id="nm-message" class="saisie-message" style="display:none;margin-top:12px"></div>
+    </div>
+    <div class="modal-machine-footer">
+      <button class="btn-reset" onclick="fermerModalMachine()">Annuler</button>
+      <button class="btn-submit" onclick="soumettreNouvelleMachine()">
+        <i class="fas fa-save"></i> Créer la machine
+      </button>
+    </div>
+  </div>
+</div>
+</div><!-- /machine-section -->
     <!-- ─────────────────────────────────────────
          PAGE : PRODUITS
     ───────────────────────────────────────── -->
@@ -3529,5 +3934,6 @@ textarea.form-control { resize: vertical; min-height: 70px; }
      PAGE HACCP
      ═══════════════════════════════════════════════════════════ -->
 <script src="twiny_app.js"></script>
+<script src="machine_app.js"></script>
 </body>
 </html>

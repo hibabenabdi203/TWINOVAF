@@ -756,5 +756,195 @@ const visu3d = (() => {
     camera.lookAt(...pos);
   };
 
-  return { init, setMode, setLevel, resetCamera, toggleRotation, vueDessusDessus, allerModule, _focusAnnotation };
+  return { init, setMode, setLevel, resetCamera, toggleRotation, vueDessusDessus, allerModule, _focusAnnotation, getMachinesConfig: () => MACHINES_CONFIG, getMachines3d: () => machines3d, getColorForStatus, getProduits3d: () => PRODUITS_CONFIG };
 })();
+
+function updateMachineColors3D(statusMap) {
+  // statusMap = { "MAC-LAIT-001": "en_marche", "MAC-LAIT-002": "arret", ... }
+  
+  scene.traverse((obj) => {
+    if (obj.isMesh && obj.userData.machineCode) {
+      const statut = statusMap[obj.userData.machineCode];
+      if (statut) {
+        const color = getMachineColor3D(statut);  // défini dans machine_app.js
+        obj.material.color.setHex(color);
+      }
+    }
+  });
+}
+// ============================================================
+//  LIAISON TWIN MACHINE ↔ VISUALISATION 3D
+//  Remplacez la fonction updateMachineColors3D existante
+//  par tout ce bloc à la fin de visualisation3d_app.js
+// ============================================================
+
+// Correspondance code_machine backend → id dans MACHINES_CONFIG
+const MACHINE_CODE_TO_3D_ID = {
+  'MAC-LAIT-001': 2,
+  'MAC-LAIT-002': 3,
+  'MAC-LAIT-003': 5,
+  'MAC-LAIT-004': 7,
+  'MAC-LAIT-005': 1,
+  'MAC-LAIT-006': 4,
+  'MAC-LAIT-007': 6,
+  'MAC-LAIT-008': 8,
+  'MAC-LAIT-009': 9,
+  'MAC-LAIT-010': 10,
+};
+
+const STATUT_TO_ALERTE = {
+  'en_marche':   'normal',
+  'arret':       'warning',
+  'maintenance': 'maintenance',
+  'panne':       'critical'
+};
+
+// ── Mise à jour complète des données machines en 3D ──────────────────────
+function updateMachinesData3D(machinesBackend) {
+  if (!machinesBackend || machinesBackend.length === 0) return;
+  
+  const MACHINES_CONFIG = visu3d.getMachinesConfig();
+  const machines3d = visu3d.getMachines3d();
+  
+  machinesBackend.forEach(m => {
+    const id3D = MACHINE_CODE_TO_3D_ID[m.code_machine];
+    if (!id3D) return;
+    const cfg = MACHINES_CONFIG.find(c => c.id === id3D);
+    if (!cfg) return;
+
+    cfg.trs      = m.taux_disponibilite ?? cfg.trs;
+    cfg.temp     = m.temperature        ?? cfg.temp;
+    cfg.hsi      = m.hsi                ?? cfg.hsi;
+    cfg.alerte   = STATUT_TO_ALERTE[m.statut] ?? 'normal';
+
+    const machine3d = machines3d.find(x => x.cfg.id === id3D);
+    if (machine3d) {
+      const color = new THREE.Color(visu3d.getColorForStatus(cfg.alerte));
+      if (machine3d.mat) {
+        machine3d.mat.color.set(color);
+        machine3d.mat.emissive.set(color);
+      }
+    }
+  });
+}
+
+// ── Mise à jour des produits en 3D ───────────────────────────────────────
+function updateProduitsData3D(produitsBackend) {
+  if (!produitsBackend || produitsBackend.length === 0) return;
+
+  produitsBackend.forEach((produit, index) => {
+    const cfg = PRODUITS_CONFIG[index];
+    if (!cfg) return;
+
+    cfg.nom_reel = produit.nom ?? cfg.nom;
+
+    if (cfg.annotations && cfg.annotations.length > 0) {
+      cfg.annotations[0].data = {
+        produit:      produit.nom          ?? '--',
+        temperature:  produit.temperature  != null ? produit.temperature + '°C' : '--',
+        ph:           produit.ph           != null ? produit.ph : '--',
+        statut:       '✅ Données réelles'
+      };
+      if (cfg.annotations[1]) {
+        cfg.annotations[1].data = {
+          rendement:   produit.rendement_theorique != null ? produit.rendement_theorique + '%' : '--',
+          dlc:         produit.dlc_theorique       != null ? produit.dlc_theorique + ' jours'  : '--',
+          temp_stockage: produit.temperature_stockage != null ? produit.temperature_stockage + '°C' : '--',
+          statut:      '✅ Données réelles'
+        };
+      }
+    }
+  });
+}
+
+// ── Mise à jour KPIs 3D avec vraies données ───────────────────────────────
+function updateKPIsFromRealData(machines) {
+  const hsiVals  = machines.map(m => m.hsi).filter(v => v != null);
+  const tempVals = machines.map(m => m.temperature).filter(v => v != null);
+  const alertes  = machines.reduce((acc, m) => acc + (m.alertes ? m.alertes.length : 0), 0);
+  const avg      = arr => arr.length ? Math.round(arr.reduce((a,b)=>a+b,0)/arr.length) : 0;
+
+  const setText = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
+
+  setText('vkpi-hsi',   avg(hsiVals));
+  setText('vkpi-temp',  tempVals.length ? Math.max(...tempVals) + '°C' : '--');
+  setText('vkpi-haccp', alertes + ' alerte(s)');
+
+  const hsiEl = document.getElementById('vkpi-hsi');
+  if (hsiEl) {
+    const hsi = avg(hsiVals);
+    hsiEl.className = `visu-kpi-val ${hsi>=75?'green':hsi>=55?'yellow':'red'}`;
+  }
+}
+
+// ── Helpers labels ────────────────────────────────────────────────────────
+function getStatutLabel3D(statut) {
+  const map = {
+    'en_marche':   '✅ En marche',
+    'arret':       '⏹ Arrêt',
+    'maintenance': '🔧 Maintenance',
+    'panne':       '🔴 Panne'
+  };
+  return map[statut] ?? '--';
+}
+
+function getNiveauLabel3D(niveau) {
+  const map = {
+    'aucune':    '✅ Normal',
+    'attention': '⚠️ Attention',
+    'critique':  '🔴 Critique'
+  };
+  return map[niveau] ?? '--';
+}
+
+// ── Ancienne fonction gardée pour compatibilité ───────────────────────────
+function updateMachineColors3D(statusMap) {
+  const machines = Object.entries(statusMap).map(([code, statut]) => ({
+    code_machine: code, statut
+  }));
+  updateMachinesData3D(machines);
+}
+// getMachineColor3D() est défini dans machine_app.js — retourne hex color
+function updateProduitsData3D(lotsData) {
+  if (!lotsData || lotsData.length === 0) return;
+
+  const dernierLot = lotsData[0];
+  const PRODUITS_CONFIG = visu3d.getProduits3d();
+  const alertes = dernierLot.alertes || [];
+
+  PRODUITS_CONFIG.forEach(produit => {
+    if (!produit.annotations) return;
+
+    const statut = dernierLot.niveau_alerte === 'critique' ? '🔴 NON CONFORME — Risque sanitaire'
+                 : dernierLot.niveau_alerte === 'mineure'  ? '⚠️ Attention requise'
+                 : '✅ Conforme — Sûr à consommer';
+
+    if (produit.annotations[0]) {
+      produit.annotations[0].data = {
+        lot:         dernierLot.numero_lot ?? '--',
+        rendement:   dernierLot.rendement_reel != null ? dernierLot.rendement_reel + '%' : '--',
+        temperature: alertes.find(a => a.type === 'temperature')?.valeur_mesuree != null
+                     ? alertes.find(a => a.type === 'temperature').valeur_mesuree + '°C' : '--',
+        statut
+      };
+    }
+
+    if (produit.annotations[1]) {
+      produit.annotations[1].data = {
+        masse_entree:  dernierLot.masse_entree_kg != null ? dernierLot.masse_entree_kg + ' kg' : '--',
+        masse_sortie:  dernierLot.masse_sortie_kg != null ? dernierLot.masse_sortie_kg + ' kg' : '--',
+        perte:         dernierLot.perte_kg != null ? dernierLot.perte_kg + ' kg' : '--',
+        statut:        dernierLot.est_conforme_temp ? '✅ Température conforme' : '🔴 Température hors limite'
+      };
+    }
+
+    if (produit.annotations[2]) {
+      produit.annotations[2].data = {
+        numero_lot:   dernierLot.numero_lot ?? '--',
+        alertes:      alertes.length + ' alerte(s) active(s)',
+        risque:       dernierLot.niveau_alerte === 'critique' ? '⛔ NE PAS CONSOMMER' : '✅ Sûr',
+        statut:       '🔴 Données temps réel'
+      };
+    }
+  });
+}
