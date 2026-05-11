@@ -4979,27 +4979,8 @@ window.addEventListener('load', () => {
     }, 1000);
 });
 function toggleSidebar() {
-  const sidebar  = document.querySelector('.sidebar');
-  const isMobile = window.innerWidth <= 768;
-
-  if (isMobile) {
-    sidebar.classList.toggle('mobile-open');
-
-    // Overlay
-    let overlay = document.querySelector('.sidebar-overlay');
-    if (!overlay) {
-      overlay = document.createElement('div');
-      overlay.className = 'sidebar-overlay';
-      overlay.onclick = () => {
-        sidebar.classList.remove('mobile-open');
-        overlay.classList.remove('active');
-      };
-      document.body.appendChild(overlay);
-    }
-    overlay.classList.toggle('active');
-  } else {
-    const main = document.querySelector('.main');
-    sidebar.classList.toggle('collapsed');
-    main.classList.toggle('sidebar-collapsed');
-  }
+  const sidebar = document.querySelector('.sidebar');
+  const main    = document.querySelector('.main');
+  sidebar.classList.toggle('collapsed');
+  main.classList.toggle('sidebar-collapsed');
 }
