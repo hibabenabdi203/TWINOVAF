@@ -1787,41 +1787,4 @@ input[type=range]::-webkit-slider-thumb { -webkit-appearance:none; width:13px; h
     z-index: 998;
   }
   .sidebar-overlay.active { display: block; }
-}/* Empêcher le débordement horizontal */
-  * {
-    max-width: 100% !important;
-    box-sizing: border-box !important;
-  }
-
-  body, html {
-    overflow-x: hidden !important;
-  }
-
-  .page {
-    padding: 10px !important;
-    overflow-x: hidden !important;
-  }
-
-  /* Tableaux responsive */
-  table {
-    display: block !important;
-    overflow-x: auto !important;
-    white-space: nowrap;
-  }
-
-  /* Grilles responsive */
-  .decisions-grid {
-    grid-template-columns: 1fr !important;
-  }
-
-  .sim-page-wrap {
-    grid-template-columns: 1fr !important;
-  }
-
-  .recettes-wrap {
-    grid-template-columns: 1fr !important;
-  }
-
-  .compte-wrap {
-    grid-template-columns: 1fr !important;
-  }
+}
