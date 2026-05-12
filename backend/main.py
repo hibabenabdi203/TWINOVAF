@@ -53,16 +53,29 @@ app.include_router(router_machine)
 def startup():
     init_db()
     db = SessionLocal()
+    
+    # ── Créer le produit par défaut si absent ──
+    if db.query(Produit).count() == 0:
+        produit = Produit(
+            nom="Ligne A — Remplissage",
+            secteur="Agroalimentaire",
+            temps_cycle=30.0,
+            temps_planifie=480.0,
+            marge_unitaire=2.5,
+            capacite_theorique=960.0
+        )
+        db.add(produit)
+        db.commit()
+        print("✅ Produit par défaut créé")
+    
     seed_haccp_demo(db)
     seed_energie_demo(db)
     seed_predictif_demo(db)
     seed_benchmark_demo(db)
     seed_greenfield_demo(db)
     seed_machine_demo(db)
-    
 
     db.close()
-    # Créer la table utilisateurs
     from database import engine
     from auth import Utilisateur
     Utilisateur.__table__.create(bind=engine, checkfirst=True)

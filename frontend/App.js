@@ -14,7 +14,7 @@ document.addEventListener('submit', (event) => {
 }, true);
 // ── AUTHENTIFICATION ──────────────────────────────────
 // ── PLAN D'ACTION ─────────────────────────────────────
-async function chargerPlanAction(produitId = 2) {
+async function chargerPlanAction(produitId = 1) {
   try {
     const response = await fetch(`https://twinovaf.onrender.com/plan-action/${produitId}`);
     const data = await response.json();
@@ -1089,7 +1089,7 @@ function getCouleurKPI() {
   return trs >= 85 ? 0x1a8a4a : trs >= 60 ? 0xf59e0b : 0xd93025;
 }
 
-async function chargerKPIs3D(produitId = 2) {
+async function chargerKPIs3D(produitId = 1) {
   try {
     const response = await fetch(`https://twinovaf.onrender.com/historique/${produitId}`);
     const data = await response.json();
@@ -1355,7 +1355,7 @@ const chartDatasets = {
   '90j': { labels: [], trs: [], dispo: [], perf: [] }
 };
 
-async function chargerDonneesGraphiques(produitId = 2) {
+async function chargerDonneesGraphiques(produitId = 1) {
   try {
     const response = await fetch(`https://twinovaf.onrender.com/historique/${produitId}`);
     const data = await response.json();
@@ -1445,7 +1445,7 @@ function setPeriod(p, btn) {
 }
 
 // ── CHART PERTES ─────────────────────────────────────
-async function initLossChart(produitId = 2) {
+async function initLossChart(produitId = 1) {
   const ctx = document.getElementById('lossChart');
   if (!ctx) return;
 
@@ -1516,7 +1516,7 @@ lossChart = new Chart(ctx, {
 const BASE = { dispo:70, perf:80, qual:88, trs:62, planifie:480, cycle:30, cap:960, marge:2.5 };
 let BASE_REEL = null; // Sera rempli avec les vraies données
 
-async function chargerDonneesSimulateur(produitId = 2) {
+async function chargerDonneesSimulateur(produitId = 1) {
   try {
     const response = await fetch(`https://twinovaf.onrender.com/historique/${produitId}`);
     const data = await response.json();
@@ -1836,7 +1836,7 @@ async function chargerProduits() {
 }
 async function chargerHistorique() {
   try {
-    const response = await fetch('https://twinovaf.onrender.com/historique/2');
+    const response = await fetch('https://twinovaf.onrender.com/historique/1');
     const data = await response.json();
 
     const tbody = document.querySelector('.data-table tbody');
@@ -1919,7 +1919,7 @@ async function liaisonMachineHaccp() {
 }
 async function chargerDashboard() {
   try {
-    const response = await fetch('https://twinovaf.onrender.com/historique/2');
+    const response = await fetch('https://twinovaf.onrender.com/historique/1');
     const data = await response.json();
 
     if (!data.historique || data.historique.length === 0) return;
@@ -4979,8 +4979,27 @@ window.addEventListener('load', () => {
     }, 1000);
 });
 function toggleSidebar() {
-  const sidebar = document.querySelector('.sidebar');
-  const main    = document.querySelector('.main');
-  sidebar.classList.toggle('collapsed');
-  main.classList.toggle('sidebar-collapsed');
+  const sidebar  = document.querySelector('.sidebar');
+  const isMobile = window.innerWidth <= 768;
+
+  if (isMobile) {
+    sidebar.classList.toggle('mobile-open');
+
+    // Overlay
+    let overlay = document.querySelector('.sidebar-overlay');
+    if (!overlay) {
+      overlay = document.createElement('div');
+      overlay.className = 'sidebar-overlay';
+      overlay.onclick = () => {
+        sidebar.classList.remove('mobile-open');
+        overlay.classList.remove('active');
+      };
+      document.body.appendChild(overlay);
+    }
+    overlay.classList.toggle('active');
+  } else {
+    const main = document.querySelector('.main');
+    sidebar.classList.toggle('collapsed');
+    main.classList.toggle('sidebar-collapsed');
+  }
 }
